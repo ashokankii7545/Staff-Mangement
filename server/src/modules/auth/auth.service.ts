@@ -1,3 +1,5 @@
+import { CounterModel } from '../user/counter.model.js';
+import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env.js';
@@ -167,21 +169,25 @@ class AuthService {
     );
   }
 
-  /** Auto-generate a unique employee ID from the hire's email (fallback: name) */
+  /** Auto-generate a sequential unique employee ID (e.g. EMP1001) */
   public async generateEmployeeId(
     role = 'STAFF',
-    identity: { name?: string; email?: string } = {},
+    identity?: { name?: string; email?: string }
   ): Promise<string> {
     const prefix = this.ROLE_PREFIXES[role] ?? this.ROLE_PREFIXES.STAFF;
-    const base = `${prefix}-${this.deriveEmployeeHandle(identity)}`;
-
-    if (!(await userRepository.queries.existsByEmployeeId(base))) return base;
-
-    for (let n = 2; n <= 998; n += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      if (!(await userRepository.queries.existsByEmployeeId(`${base}${n}`))) return `${base}${n}`;
-    }
-    return `${base}${Date.now().toString().slice(-4)}`;
+    
+    // Auto-increment the global employee sequence
+    const counter = await CounterModel.findOneAndUpdate(
+      { _id: 'employeeId' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    
+    const seqValue = counter?.seq || 1;
+    // Starting at 1000: seq 1 -> 1001
+    const numericPart = 1000 + seqValue;
+    
+    return `${prefix}${numericPart}`;
   }
 
   /**

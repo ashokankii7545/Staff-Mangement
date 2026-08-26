@@ -104,7 +104,7 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
       const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
       setVerifyingMsg('Submitting punch...');
-      const { data } = await submitAttendance({
+      const { data, error, errorMessage } = await submitAttendance({
         variables: {
           input: {
             selfieBase64: imageSrc,
@@ -119,9 +119,16 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
         },
       });
 
-      const result = isClockIn ? data.clockIn : data.clockOut;
+      if (error) {
+        throw new Error(errorMessage || 'Failed to submit attendance');
+      }
 
-      if (result?.success) {
+      const result = isClockIn ? data?.clockIn : data?.clockOut;
+      if (!result) {
+         throw new Error('Failed to parse backend response (data is null).');
+      }
+
+      if (result.success) {
         notify.success(result.message || 'Attendance verified & marked successfully!');
         onClose();
       }

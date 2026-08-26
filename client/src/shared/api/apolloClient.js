@@ -94,6 +94,18 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
       }
 
       if (err.extensions?.code === 'UNAUTHENTICATED' || err.message.includes('Not authenticated')) {
+        // Bypass for auth operations: wrong password naturally returns UNAUTHENTICATED, we should not log them out/refresh.
+        const opName = operation.operationName;
+        if (opName === 'Login' || opName === 'GoogleLogin' || opName === 'Signup' || opName === 'RequestPasswordReset') {
+          return; // Let the component handle the error
+        }
+
+        // CRITICAL FIX: If we don't even have a token, we can't refresh it.
+        // And we shouldn't force a navigation to /login if they are already trying to log in!
+        if (!authProvider.getToken()) {
+          return;
+        }
+
         if (authProvider.isCallbackInFlight()) return; // Don't interrupt OAuth flow
 
         consecutiveAuthFailures++;

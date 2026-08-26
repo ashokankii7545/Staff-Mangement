@@ -337,7 +337,7 @@ export const GenericDataGrid = ({
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
         {showToolbar && toolbar}
         {/* Keep the grid skeleton (header + columns) visible on empty – only the body says "No data" */}
-        <TableContainer sx={{ maxHeight: 'calc(100vh - 250px)' }}>
+        <TableContainer>
           <Table stickyHeader size={size} aria-label={title || 'data table'}>
             <TableHead>{renderHeadCells()}</TableHead>
             <TableBody>
@@ -368,7 +368,7 @@ export const GenericDataGrid = ({
   return (
     <Paper sx={{ width: '100%', overflow: 'hidden' }}>
       {showToolbar && toolbar}
-      <TableContainer sx={{ maxHeight: 'calc(100vh - 250px)' }}>
+      <TableContainer >
         <Table stickyHeader size={size} aria-label={title || 'data table'}>
           <TableHead>{renderHeadCells()}</TableHead>
           <TableBody>

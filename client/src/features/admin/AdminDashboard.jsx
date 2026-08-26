@@ -22,7 +22,7 @@ const AdminDashboard = () => {
   const [applyLeaveOpen, setApplyLeaveOpen] = useState(false);
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2} sx={{ pb: { xs: 4, sm: 2 } }}>
       {/* 1. Header with Live Site Switcher Dropdown & Custom Date Range Picker */}
       <AdminHeader
         selectedOffice={selectedOffice}

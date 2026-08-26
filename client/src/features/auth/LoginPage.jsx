@@ -254,12 +254,13 @@ const LoginPage = () => {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: 'background.default',
-        p: 2,
+        px: 2,
+        py: { xs: 4, sm: 2 }, // Explicit vertical padding for mobile
       }}
     >
       <Card sx={{ maxWidth: 460, width: '100%' }}>

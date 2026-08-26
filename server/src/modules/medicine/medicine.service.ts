@@ -151,7 +151,7 @@ class MedicineService {
       message: isNewMedicine
         ? `${staffName} needs ${request.quantity} ${String(request.unit).toLowerCase()} of "${request.medicineName}" – this medicine is NOT in your catalogue yet. Add it from the Medicine Catalog.`
         : `${staffName} needs ${request.quantity} ${String(request.unit).toLowerCase()} of ${request.medicineName}${request.strength ? ` (${request.strength})` : ''}`,
-      link: isNewMedicine ? '/medicines' : '/stock',
+      link: '/stock',
       meta: { medicineRequestId: String(request._id), isNewMedicine },
     });
 

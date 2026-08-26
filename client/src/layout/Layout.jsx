@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { AppErrorBoundary } from '../shared/lib/ErrorHandler';
 import Box from '@mui/material/Box';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -12,6 +12,15 @@ import { ThemeSync } from '../theme/ThemeContext';
 
 const Layout = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const scrollRef = useRef(null);
+
+  // Reset scroll position on route change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo(0, 0);
+    }
+  }, [location.pathname]);
   const [mobileOpen, setMobileOpen] = useState(false);
   // Desktop sidebar collapse – persisted so the choice survives page reloads
   const [collapsed, setCollapsed] = useState(
@@ -35,7 +44,7 @@ const Layout = () => {
     <Box
       sx={{
         display: 'flex',
-        height: '100vh',
+        height: '100dvh',
         overflow: 'hidden',
         bgcolor: 'background.default',
       }}
@@ -91,12 +100,15 @@ const Layout = () => {
 
         {/* Scrollable Content Area – THE ONLY THING THAT SCROLLS */}
         <Box
+          ref={scrollRef}
           sx={{
             flex: 1,
             minHeight: 0,
             overflowY: 'auto',
             scrollbarGutter: 'stable',
-            p: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 3 },
+            pt: { xs: 2, sm: 3 },
+            pb: { xs: 6, sm: 4 }, // Increased bottom padding for mobile to prevent content hiding behind browser bars
           }}
         >
           <AppErrorBoundary variant="component">

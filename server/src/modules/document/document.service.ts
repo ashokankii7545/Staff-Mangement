@@ -53,7 +53,7 @@ class DocumentService {
     await doc.populate('uploadedBy');
     const populated = doc as StaffDocumentModelDoc & { uploadedBy: { name: string } };
 
-    await notificationService.push({
+    await notificationService.notifyAdmins({
       type: 'DOCUMENT_UPLOADED',
       title: 'New document uploaded',
       message: `${populated.uploadedBy.name} uploaded "${title}" for verification.`,

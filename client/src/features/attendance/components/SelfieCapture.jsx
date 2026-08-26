@@ -66,9 +66,9 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
         const dy = Math.abs(box.y + box.height / 2 - frameH / 2) / frameH;
         const sizeRatio = box.height / frameH;
 
-        // Significantly relaxed strictness so user doesn't get stuck
-        if (sizeRatio < 0.15 || sizeRatio > 0.95) setFaceStatus('SIZE');
-        else if (dx > 0.30 || dy > 0.35) setFaceStatus('OFFCENTER');
+        // Extremely strict centering so face must be PERFECTLY in the middle
+        if (sizeRatio < 0.35 || sizeRatio > 0.85) setFaceStatus('SIZE');
+        else if (dx > 0.08 || dy > 0.10) setFaceStatus('OFFCENTER');
         else setFaceStatus('READY');
       } catch (err) {
         console.error("Face detector error:", err);
@@ -102,25 +102,13 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
     }
   }, [onCapture]);
 
-  // AUTO-CAPTURE LOGIC
+  // AUTO-CAPTURE LOGIC (DISABLED BY USER REQUEST)
   const [autoCaptureTimer, setAutoCaptureTimer] = useState(null);
   
   useEffect(() => {
-    let timerId;
-    if (faceStatus === 'READY' && !capturedImage && !isPunching && requireCenteredFace) {
-      // Start a 1.5-second countdown to auto-capture
-      if (autoCaptureTimer === null) {
-        setAutoCaptureTimer(2);
-      } else if (autoCaptureTimer > 0) {
-        timerId = setTimeout(() => setAutoCaptureTimer((prev) => prev - 1), 700);
-      } else if (autoCaptureTimer === 0) {
-        capture();
-      }
-    } else {
-      setAutoCaptureTimer(null);
-    }
-    return () => clearTimeout(timerId);
-  }, [faceStatus, autoCaptureTimer, capturedImage, isPunching, requireCenteredFace, capture]);
+    // Disabled auto-capture completely
+    setAutoCaptureTimer(null);
+  }, [faceStatus, capturedImage, isPunching, requireCenteredFace, capture]);
 
   /** Gallery / file-picker path – same data-url pipeline as the camera */
   const handleFileUpload = useCallback((event) => {

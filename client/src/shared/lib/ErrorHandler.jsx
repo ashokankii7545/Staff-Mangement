@@ -90,47 +90,9 @@ export const ComponentFallback = ({ error, resetErrorBoundary }) => (
 // MODULE 3: SYSTEM LAYER (Global Background Listener)
 // =====================================================================
 const GlobalErrorListener = ({ children }) => {
-  const { showBoundary } = useErrorBoundary();
-
-  useEffect(() => {
-    const handleWindowError = (event) => {
-      event.preventDefault();
-      const errorMsg = event.error?.message || event.message || '';
-
-      // Edge Case: Ignore Third-Party CORS Script Errors
-      if (errorMsg === 'Script error.') {
-        logger.warn("Ignored third-party CORS script error.");
-        return; 
-      }
-
-      // Edge Case: Missing Chunks on Deployment (Force Hard Reload)
-      if (
-        errorMsg.includes('ChunkLoadError') || 
-        errorMsg.includes('Failed to fetch dynamically imported module') ||
-        errorMsg.includes('Loading chunk')
-      ) {
-        logger.warn("New deployment detected. Force reloading chunks...");
-        window.location.reload(true); 
-        return; 
-      }
-
-      showBoundary(event.error || new Error(errorMsg));
-    };
-
-    const handlePromiseRejection = (event) => {
-      event.preventDefault();
-      showBoundary(event.reason || new Error('Unhandled Promise Rejection'));
-    };
-
-    window.addEventListener('error', handleWindowError);
-    window.addEventListener('unhandledrejection', handlePromiseRejection);
-
-    return () => {
-      window.removeEventListener('error', handleWindowError);
-      window.removeEventListener('unhandledrejection', handlePromiseRejection);
-    };
-  }, [showBoundary]);
-
+  // We intentionally removed the window 'error' and 'unhandledrejection' listeners here.
+  // React Error Boundary automatically catches rendering errors.
+  // Crashing the entire app for background network errors or third-party script errors is disruptive.
   return children;
 };
 

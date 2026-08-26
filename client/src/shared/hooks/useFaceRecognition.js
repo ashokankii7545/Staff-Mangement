@@ -40,8 +40,9 @@ export const useFaceRecognition = () => {
   const getFaceDescriptor = async (imageSrc) => {
     if (!modelsLoaded) throw new Error('Face models are still loading');
     const img = await faceapi.fetchImage(resolveImageUrl(imageSrc));
+    const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.2 });
     const detection = await faceapi
-      .detectSingleFace(img)
+      .detectSingleFace(img, options)
       .withFaceLandmarks()
       .withFaceDescriptor();
     return detection ? detection.descriptor : null;
