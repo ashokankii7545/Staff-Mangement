@@ -1,0 +1,51 @@
+{
+  "name": "staff-attendance-client",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@apollo/client": "^3.14.1",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@hookform/resolvers": "^5.9.1",
+    "@mui/icons-material": "^6.1.0",
+    "@mui/material": "^6.5.0",
+    "@mui/system": "^7.3.11",
+    "@mui/x-date-pickers": "^7.29.4",
+    "@react-oauth/google": "^0.13.5",
+    "ahooks": "^3.9.7",
+    "apollo-upload-client": "^18.0.1",
+    "crypto-hash": "^4.0.1",
+    "dayjs": "^1.11.23",
+    "face-api.js": "^0.22.2",
+    "graphql": "^16.9.0",
+    "graphql-ws": "^6.2.1",
+    "leaflet": "^1.9.4",
+    "maplibre-gl": "^6.6.0",
+    "notistack": "^3.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-error-boundary": "^6.1.3",
+    "react-hook-form": "^7.86.0",
+    "react-leaflet": "^4.2.1",
+    "react-router-dom": "^6.26.0",
+    "react-transition-group": "^4.4.5",
+    "react-webcam": "^7.2.0",
+    "recharts": "^2.12.0",
+    "uuid": "^14.0.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/apollo-upload-client": "^18.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "vite": "^5.4.0"
+  }
+}
