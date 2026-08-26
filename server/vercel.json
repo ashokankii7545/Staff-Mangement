@@ -1,14 +1,29 @@
 {
-    "builds": [
-        {
-            "src": "src/server.ts",
-            "use": "@vercel/node"
-        }
-    ],
-    "routes": [
-        {
-          "src": "/(.*)",
-          "dest": "src/server.ts"
-        }
-    ]
-  }
+  "builds": [
+    {
+      "src": "src/server.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://staffmangementcl.vercel.app" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
+        { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization" }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "methods": ["OPTIONS"],
+      "dest": "src/server.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "src/server.ts"
+    }
+  ]
+}

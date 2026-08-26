@@ -29,17 +29,20 @@ export const createBaseApp = (): Express => {
   // otherwise the rate limiter buckets everyone and VPN checks break.
   app.set('trust proxy', 1);
 
-  // ── Standard HTTP security headers ──
+  // "?"? Standard HTTP security headers "?"?
   // CSP stays disabled: GraphQL landing page needs inline scripts.
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmet({ 
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  }));
   app.disable('x-powered-by');
 
   // Liveness probe for hosts (Render/Railway/Docker healthchecks).
   app.get('/health', (_req, res) => {
     res.json({
       status: 'ok',
-      uptimeSeconds: Math.round(process.uptime()),
-      dbConnected: database.isConnected,
+      timestamp: new Date().toISOString(),
+      env: env.nodeEnv,
     });
   });
 
@@ -60,13 +63,14 @@ export const createBaseApp = (): Express => {
 /** Mount the GraphQL endpoint (call once the Apollo server has started). */
 export const attachGraphql = (
   app: Express,
-  apollo: ApolloServer,
+  apollo: ApolloServer<unknown>,
 ): void => {
   app.use(
     '/graphql',
     cors({
-      // Locked down in production via CORS_ORIGIN (comma-separated list).
-      origin: env.corsOrigins ?? true,
+      // Reflect request origin (safest fallback if Vercel env var has typos)
+      origin: true,
+      credentials: true,
     }),
     graphqlRateLimiter,
     express.json({ limit: '10mb' }),
