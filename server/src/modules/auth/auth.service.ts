@@ -191,16 +191,16 @@ class AuthService {
   private async persistWithUniqueEmployeeId(args: {
     role: string;
     identity: { name?: string; email?: string };
-    buildUser: (employeeId: string) => Partial<IUserDocument>;
+    buildUser: (employeeId: string) => Partial<IUserDocument> | Promise<Partial<IUserDocument>>;
   }): Promise<IUserDocument> {
     let employeeId = await this.generateEmployeeId(args.role, args.identity);
     try {
-      return await userRepository.queries.create(args.buildUser(employeeId));
+      return await userRepository.queries.create(await args.buildUser(employeeId));
     } catch (error) {
       const code = (error as { code?: number }).code;
       if (code !== 11000) throw error; // duplicate key on some other field
       employeeId = await this.generateEmployeeId(args.role, args.identity);
-      return userRepository.queries.create(args.buildUser(employeeId));
+      return userRepository.queries.create(await args.buildUser(employeeId));
     }
   }
 
@@ -295,7 +295,7 @@ class AuthService {
     const createdUser = await this.persistWithUniqueEmployeeId({
       role,
       identity: { name: input.name, email },
-      buildUser: (employeeId) => ({
+      buildUser: async (employeeId) => ({
         employeeId,
         name: String(input.name).trim(),
         email: email || `${employeeId.toLowerCase()}@company.com`,
@@ -305,7 +305,7 @@ class AuthService {
         approvalStatus: 'APPROVED', // admin vouches for this person
         leaveBalances: startingBalances,
         ...(input.avatarBase64 && {
-          avatar: saveBase64Image(input.avatarBase64, `staff-${employeeId}-${Date.now()}`),
+          avatar: await saveBase64Image(input.avatarBase64, `staff-${employeeId}-${Date.now()}`),
         }),
       }),
     });
@@ -331,7 +331,7 @@ class AuthService {
     const user = await this.persistWithUniqueEmployeeId({
       role: 'STAFF',
       identity: { name: args.name, email: cleanEmail },
-      buildUser: (employeeId) => ({
+      buildUser: async (employeeId) => ({
         employeeId,
         name: String(args.name).trim(),
         email: cleanEmail,
@@ -341,7 +341,7 @@ class AuthService {
         approvalStatus: 'PENDING',
         leaveBalances: startingBalances,
         ...(args.avatarBase64 && {
-          avatar: saveBase64Image(args.avatarBase64, `staff-${employeeId}-${Date.now()}`),
+          avatar: await saveBase64Image(args.avatarBase64, `staff-${employeeId}-${Date.now()}`),
         }),
       }),
     });

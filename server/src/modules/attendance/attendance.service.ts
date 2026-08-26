@@ -231,7 +231,7 @@ class AttendanceService {
 
     // ── Selfie persistence ──
     const filename = `${userId}_${type.toLowerCase()}_${today}_${Date.now()}`;
-    const selfieUrl = saveBase64Image(input.selfieBase64, filename);
+    const selfieUrl = await saveBase64Image(input.selfieBase64, filename);
 
     // ── APPROVAL POLICY (modern HRMS behaviour) ──
     // A CLEAN punch (inside geofence + face verified + no flag) is auto-APPROVED

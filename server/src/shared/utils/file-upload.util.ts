@@ -1,7 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import { ValidationError } from '../errors/app.errors.js';
-import { env } from '../../config/env.js';
+import { uploadToR2 } from './r2.util.js';
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB decoded ceiling per image
 const DATA_URI_RE = /^data:(image\/(jpeg|png|webp));base64,/;
@@ -15,13 +13,20 @@ const DOC_EXT: Record<string, string> = {
   'application/pdf': 'pdf',
 };
 
+const DOC_MIME: Record<string, string> = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'application/pdf': 'application/pdf',
+};
+
 /**
- * Save a base64-encoded document (PDF or image) to disk for the staff vault.
+ * Save a base64-encoded document (PDF or image) to Cloudflare R2.
  * Accepts ONLY application/pdf | image/jpeg | image/png | image/webp and
  * rejects empty / oversized (>5 MB decoded) uploads.
- * @returns Relative URL path to the saved file
+ * @returns Full public URL of the uploaded file
  */
-export const saveBase64Document = (base64Data: string, filename: string): string => {
+export const saveBase64Document = async (base64Data: string, filename: string): Promise<string> => {
   if (typeof base64Data !== 'string' || base64Data.length < 42) {
     throw new ValidationError('Invalid document payload.');
   }
@@ -37,23 +42,19 @@ export const saveBase64Document = (base64Data: string, filename: string): string
     throw new ValidationError('Document too large – maximum allowed size is 5 MB.');
   }
 
-  const docsDir = path.join(process.cwd(), env.uploadDir, 'documents');
-  if (!fs.existsSync(docsDir)) {
-    fs.mkdirSync(docsDir, { recursive: true });
-  }
-
   const fullFilename = `${filename}.${DOC_EXT[mime]}`;
-  fs.writeFileSync(path.join(docsDir, fullFilename), buffer);
+  const key = `documents/${fullFilename}`;
 
-  return `/uploads/documents/${fullFilename}`;
+  return uploadToR2(buffer, key, DOC_MIME[mime]);
 };
 
 /**
- * Save a base64-encoded selfie/image to disk (hardened):
+ * Save a base64-encoded selfie/image to Cloudflare R2 (hardened):
  * accepts ONLY image/jpeg | image/png | image/webp payloads and rejects
  * empty / oversized (>3 MB decoded) uploads.
+ * @returns Full public URL of the uploaded selfie
  */
-export const saveBase64Image = (base64Data: string, filename: string): string => {
+export const saveBase64Image = async (base64Data: string, filename: string): Promise<string> => {
   if (typeof base64Data !== 'string' || base64Data.length < 42) {
     throw new ValidationError('Invalid image payload.');
   }
@@ -67,15 +68,10 @@ export const saveBase64Image = (base64Data: string, filename: string): string =>
     throw new ValidationError('Image too large – maximum allowed size is 3 MB.');
   }
 
-  const selfiesDir = path.join(process.cwd(), env.uploadDir, 'selfies');
-  if (!fs.existsSync(selfiesDir)) {
-    fs.mkdirSync(selfiesDir, { recursive: true });
-  }
-
   const fullFilename = `${filename}.jpg`;
-  fs.writeFileSync(path.join(selfiesDir, fullFilename), buffer);
+  const key = `selfies/${fullFilename}`;
 
-  return `/uploads/selfies/${fullFilename}`;
+  return uploadToR2(buffer, key, 'image/jpeg');
 };
 
 const IMAGE_EXT: Record<string, string> = {
@@ -84,14 +80,20 @@ const IMAGE_EXT: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+const IMAGE_MIME: Record<string, string> = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+};
+
 /**
- * Save a base64-encoded medicine photo to disk (catalogue images):
+ * Save a base64-encoded medicine photo to Cloudflare R2 (catalogue images):
  * accepts ONLY image/jpeg | image/png | image/webp payloads, rejects empty /
  * oversized (>3 MB decoded) uploads and preserves the real extension so the
- * static server sends the correct content type.
- * @returns Relative URL path to the saved file
+ * correct content type is served.
+ * @returns Full public URL of the uploaded file
  */
-export const saveBase64MedicineImage = (base64Data: string, filename: string): string => {
+export const saveBase64MedicineImage = async (base64Data: string, filename: string): Promise<string> => {
   if (typeof base64Data !== 'string' || base64Data.length < 42) {
     throw new ValidationError('Invalid image payload.');
   }
@@ -107,21 +109,9 @@ export const saveBase64MedicineImage = (base64Data: string, filename: string): s
     throw new ValidationError('Image too large – maximum allowed size is 3 MB.');
   }
 
-  const medicinesDir = path.join(process.cwd(), env.uploadDir, 'medicines');
-  if (!fs.existsSync(medicinesDir)) {
-    fs.mkdirSync(medicinesDir, { recursive: true });
-  }
-
-  // One stable filename per medicine id – re-uploads overwrite instead of
-  // piling up orphaned files (stale extension variants are cleaned below).
   const targetExt = IMAGE_EXT[mime];
-  for (const ext of Object.values(IMAGE_EXT)) {
-    const stalePath = path.join(medicinesDir, `${filename}.${ext}`);
-    if (ext !== targetExt && fs.existsSync(stalePath)) fs.unlinkSync(stalePath);
-  }
-
   const fullFilename = `${filename}.${targetExt}`;
-  fs.writeFileSync(path.join(medicinesDir, fullFilename), buffer);
+  const key = `medicines/${fullFilename}`;
 
-  return `/uploads/medicines/${fullFilename}`;
+  return uploadToR2(buffer, key, IMAGE_MIME[mime]);
 };

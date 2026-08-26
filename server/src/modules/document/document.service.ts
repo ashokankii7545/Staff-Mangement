@@ -39,7 +39,7 @@ class DocumentService {
     const title = String(input.title || '').trim();
     if (!title) throw new ValidationError('Document title is required.');
 
-    const fileUrl = saveBase64Document(input.fileBase64, `doc_${uploaderId}_${Date.now()}`);
+    const fileUrl = await saveBase64Document(input.fileBase64, `doc_${uploaderId}_${Date.now()}`);
 
     const doc = await documentRepository.queries.create({
       uploadedBy: uploaderId as never,

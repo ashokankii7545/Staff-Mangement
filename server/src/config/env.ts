@@ -35,6 +35,14 @@ export interface AppEnv {
     readonly email: string | null;
     readonly password: string | null;
   };
+  /** Cloudflare R2 object storage for selfies/documents/images. */
+  readonly r2: {
+    readonly accountId: string;
+    readonly accessKeyId: string;
+    readonly secretAccessKey: string;
+    readonly bucketName: string;
+    readonly publicUrl: string;
+  };
 }
 
 const REQUIRED_VARS = ['MONGO_URI', 'JWT_SECRET'] as const;
@@ -99,6 +107,13 @@ class EnvConfig {
         secure: process.env.SMTP_SECURE === 'true',
         email: process.env.SMTP_EMAIL?.trim() || null,
         password: process.env.SMTP_PASSWORD?.trim() || null,
+      }),
+      r2: Object.freeze({
+        accountId: process.env.R2_ACCOUNT_ID ?? '',
+        accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+        bucketName: process.env.R2_BUCKET_NAME ?? '',
+        publicUrl: process.env.R2_PUBLIC_URL ?? '',
       }),
     });
   }

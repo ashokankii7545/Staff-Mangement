@@ -291,7 +291,7 @@ class MedicineService {
     imageBase64?: string | null,
   ): Promise<MedicineCatalogDocument> {
     if (!imageBase64) return doc;
-    const url = saveBase64MedicineImage(imageBase64, `med_${String(doc._id)}`);
+    const url = await saveBase64MedicineImage(imageBase64, `med_${String(doc._id)}`);
     doc.image = url;
     await doc.save();
     return doc;
