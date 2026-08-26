@@ -31,5 +31,13 @@ desktop.ini
 *.log
 npm-debug.log*
 
+# Debug & Output Files
+output.txt
+*out.txt
+lint*.txt
+ctx.txt
+*.tmp
+*.bak
+
 # Coverage
 coverage/
