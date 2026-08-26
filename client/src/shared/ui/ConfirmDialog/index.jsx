@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
 import AppButton from '../AppButton';
@@ -48,13 +49,19 @@ const ConfirmDialog = forwardRef(({
   const isDanger = variant === 'danger';
   const isWarning = variant === 'warning';
   const isInfo = variant === 'info';
+  const isSuccess = variant === 'success';
 
-  const defaultIcon = isInfo ? InfoOutlinedIcon : WarningAmberIcon;
+  const defaultIcon = isSuccess
+    ? CheckCircleOutlineIcon
+    : isInfo
+      ? InfoOutlinedIcon
+      : WarningAmberIcon;
   const Icon = CustomIcon || defaultIcon;
 
   const getIconColors = () => {
     if (isWarning) return { bg: 'warning.lighter', color: 'warning.main' };
     if (isInfo) return { bg: 'info.lighter', color: 'info.main' };
+    if (isSuccess) return { bg: 'success.lighter', color: 'success.main' };
     return { bg: 'error.lighter', color: 'error.main' };
   };
   const iconColors = getIconColors();
@@ -111,9 +118,11 @@ const ConfirmDialog = forwardRef(({
       </DialogTitle>
 
       <DialogContent sx={{ px: 3, pt: 1.5, pb: 2 }}>
-        <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6, mb: inputConfirmation ? 2 : 0 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6, mb: inputConfirmation || children ? 2 : 0 }}>
           {description}
         </Typography>
+        {/* Extra content between the message and the actions (extra fields etc.) */}
+        {children}
         {inputConfirmation && (
           <TextField
             fullWidth
@@ -136,7 +145,7 @@ const ConfirmDialog = forwardRef(({
           {cancelText}
         </AppButton>
         <AppButton
-          colorPreset={isDanger ? 'danger' : isWarning ? 'warning' : 'primary'}
+          color={isDanger ? 'error' : isWarning ? 'warning' : isSuccess ? 'success' : 'primary'}
           loading={internalLoading || loading}
           onClick={handleConfirm}
           disabled={isConfirmDisabled}
@@ -158,10 +167,11 @@ ConfirmDialog.propTypes = {
   description: PropTypes.node,
   confirmText: PropTypes.string,
   cancelText: PropTypes.string,
-  variant: PropTypes.oneOf(['danger', 'warning', 'info']),
+  variant: PropTypes.oneOf(['danger', 'warning', 'info', 'success']),
   inputConfirmation: PropTypes.string,
   loading: PropTypes.bool,
   icon: PropTypes.elementType,
+  children: PropTypes.node,
   sx: PropTypes.object,
 };
 

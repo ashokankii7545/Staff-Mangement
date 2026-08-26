@@ -1,7 +1,6 @@
 import dayjs from 'dayjs';
 import { useAppQuery, useAppMutation } from '../../shared/hooks';
 import { useState } from 'react';
-import { gql } from '@apollo/client';
 
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -23,125 +22,73 @@ import {
 import PageHeader from '../../shared/ui/PageHeader';
 import AppButton from '../../shared/ui/AppButton';
 import GenericDialog from '../../shared/ui/GenericDialog';
-import { GenericFormEngine, useNotification } from '../../shared/ui';
-import IconButton from '@mui/material/IconButton';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import TextField from '@mui/material/TextField';
+import { GenericFormEngine, RowActions, FormDialog, MonoId } from '../../shared/ui';
 import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import StaffPhotoPicker from './components/StaffPhotoPicker';
-import PageAccessMatrix from './components/PageAccessMatrix';
+// ── JSON-driven form configs live in ONE shared file so the dashboard's
+//    Quick-Add modal and this page can never drift apart again ──
+import {
+  ADD_STAFF_FIELDS,
+  EDIT_STAFF_FIELDS,
+  BLANK_STAFF_FORM as BLANK_FORM,
+} from './staffFormConfig';
 
 // ── JSON-driven form configs (single source of truth for both dialogs) ──
-const ADD_STAFF_FIELDS = (officeOptions) => [
-  {
-    name: 'avatarBase64',
-    type: 'custom',
-    label: 'Profile Photo',
-    gridSize: { xs: 12 },
-    render: ({ value, onChange }) => (
-      <Box sx={{ mb: 1, width: '100%' }}>
-        <Alert severity="info" icon={<CameraAltIcon fontSize="inherit" />} sx={{ mb: 2 }}>
-          Add a clear front-facing photo (click or upload image) – attendance selfies are face-verified against it.
-        </Alert>
-        <StaffPhotoPicker value={value} onChange={onChange} />
-      </Box>
-    )
-  },
-  { name: 'name', type: 'text', label: 'Full Name', gridSize: { xs: 12, sm: 6 } },
-  { name: 'email', type: 'email', label: 'Email', gridSize: { xs: 12, sm: 6 } },
-  { name: 'password', type: 'password', label: 'Password', gridSize: { xs: 12, sm: 6 } },
-  {
-    name: 'role',
-    type: 'select',
-    label: 'System Role',
-    options: [{ value: 'STAFF', label: 'Staff' }, { value: 'ADMIN', label: 'Admin' }],
-    gridSize: { xs: 12, sm: 6 }
-  },
+// ── Small JSON-driven dialogs (replaces hand-written TextField stacks) ──
+const TEMP_DUTY_FIELDS = (officeOptions) => [
   {
     name: 'officeId',
     type: 'select',
-    label: 'Assigned Base Site',
-    options: [{ value: '', label: 'Default / Head Office' }, ...officeOptions],
-    gridSize: { xs: 12 }
-  }
-];
-
-const EDIT_STAFF_FIELDS = (officeOptions) => [
-  // Accordion sections – the long edit dialog reads as short, scannable pages
-  { type: 'section', label: 'Personal Details' },
-  { name: 'name', type: 'text', label: 'Full Name', gridSize: { xs: 12, sm: 6 } },
-  { name: 'email', type: 'email', label: 'Email', gridSize: { xs: 12, sm: 6 } },
-  {
-    name: 'role',
-    type: 'select',
-    label: 'System Role',
-    options: [{ value: 'STAFF', label: 'Staff' }, { value: 'ADMIN', label: 'Admin' }],
-    gridSize: { xs: 12, sm: 6 }
-  },
-  { type: 'section', label: 'Site & Shift' },
-  {
-    name: 'officeId',
-    type: 'select',
-    label: 'Assigned Base Site',
-    options: [{ value: '', label: 'Default / Head Office' }, ...officeOptions],
-    gridSize: { xs: 12, sm: 6 }
-  },
-  { name: 'shiftStartTime', type: 'time', label: 'Shift Start (Optional)', gridSize: { xs: 12, sm: 6 } },
-  { name: 'shiftEndTime', type: 'time', label: 'Shift End (Optional)', gridSize: { xs: 12, sm: 6 } },
-  { type: 'section', label: 'Leave Balances', defaultExpanded: false },
-  { name: 'casual', type: 'number', label: 'Casual Leaves', gridSize: { xs: 12, sm: 4 } },
-  { name: 'sick', type: 'number', label: 'Sick Leaves', gridSize: { xs: 12, sm: 4 } },
-  { name: 'earned', type: 'number', label: 'Earned Leaves', gridSize: { xs: 12, sm: 4 } },
-  // Per-account page visibility – ON by default for every page, admin
-  // withdraws specific ones (stored as user.restrictedPages route keys)
-  { type: 'section', label: 'Page Access', defaultExpanded: false },
-  {
-    name: 'restrictedPages',
-    type: 'custom',
-    label: 'Page Access',
+    label: 'Temporary Site',
+    required: true,
+    options: officeOptions,
     gridSize: { xs: 12 },
-    render: ({ value, onChange }) => (
-      <PageAccessMatrix value={value} onChange={onChange} />
-    ),
+  },
+  { name: 'startDate', type: 'date', label: 'From', required: true, gridSize: { xs: 12, sm: 6 } },
+  { name: 'endDate', type: 'date', label: 'To', required: true, gridSize: { xs: 12, sm: 6 } },
+  {
+    name: 'reason',
+    type: 'text',
+    label: 'Reason (Optional)',
+    helperText: 'Staff is notified instantly with these details',
+    gridSize: { xs: 12 },
   },
 ];
 
-const BLANK_FORM = {
-  name: '', email: '', password: '', role: 'STAFF', officeId: '', avatarBase64: null,
-};
+const DAY_OFF_FIELDS = [
+  { name: 'date', type: 'date', label: 'Date', required: true, gridSize: { xs: 12 } },
+  {
+    name: 'reason',
+    type: 'text',
+    label: 'Reason (Optional)',
+    helperText: 'Excluded from absent counts; staff sees it as EXEMPT',
+    gridSize: { xs: 12 },
+  },
+];
+
+const EMPTY_TEMP_DUTY = { officeId: '', startDate: '', endDate: '', reason: '' };
+const EMPTY_DAY_OFF = { date: '', reason: '' };
 
 const StaffManagement = () => {
-  const notify = useNotification();
   const { data, loading, error, refetch } = useAppQuery(GET_USERS);
   const { data: officeData } = useAppQuery(GET_OFFICES);
   const [addDialog, setAddDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  // Row action menu + dialogs
-  const [menuState, setMenuState] = useState({ rowId: null, anchorEl: null });
+  // Row action dialogs
   const [tempDutyUser, setTempDutyUser] = useState(null);
   const [dayOffUser, setDayOffUser] = useState(null);
-  const [tempDutyForm, setTempDutyForm] = useState({ officeId: '', startDate: '', endDate: '', reason: '' });
-  const [dayOffForm, setDayOffForm] = useState({ date: '', reason: '' });
 
   const officeOptions = (officeData?.offices || []).map((o) => ({ value: o.id, label: o.name }));
 
   // ── Temporary duty & day-off mutations ──
+  // Auto-toasts come from useAppMutation; inline field errors from FormDialog.
   const [assignTemporaryDuty, { loading: assigningDuty }] = useAppMutation(ASSIGN_TEMP_DUTY, {
     successMessage: 'Temporary duty assigned',
-    onCompleted: () => {
-      setTempDutyUser(null);
-      refetch();
-    },
-    onError: (err) => notify.error(err.message),
+    onCompleted: () => refetch(),
   });
 
   const [clearTemporaryDuty] = useAppMutation(CLEAR_TEMP_DUTY, {
@@ -151,49 +98,32 @@ const StaffManagement = () => {
 
   const [grantDayOff, { loading: grantingDayOff }] = useAppMutation(GRANT_DAY_OFF, {
     successMessage: 'Day off granted',
-    onCompleted: () => {
-      setDayOffUser(null);
-      refetch();
-    },
-    onError: (err) => notify.error(err.message),
+    onCompleted: () => refetch(),
   });
 
-  const openTempDuty = (user) => {
-    setTempDutyForm({ officeId: '', startDate: '', endDate: '', reason: '' });
-    setTempDutyUser(user);
-    setMenuState({ rowId: null, anchorEl: null });
-  };
+  const openTempDuty = (user) => setTempDutyUser(user);
 
-  const openDayOff = (user) => {
-    setDayOffForm({ date: '', reason: '' });
-    setDayOffUser(user);
-    setMenuState({ rowId: null, anchorEl: null });
-  };
+  const openDayOff = (user) => setDayOffUser(user);
 
-  const submitTempDuty = () => {
-    if (!tempDutyForm.officeId || !tempDutyForm.startDate || !tempDutyForm.endDate) {
-      notify.warning('Site, start date and end date are required');
-      return;
-    }
-    assignTemporaryDuty({
+  /** Field validation is handled inline by FormDialog's generated zod schema. */
+  const submitTempDuty = async (form) => {
+    const result = await assignTemporaryDuty({
       variables: {
         userId: tempDutyUser.id,
-        officeId: tempDutyForm.officeId,
-        startDate: tempDutyForm.startDate,
-        endDate: tempDutyForm.endDate,
-        reason: tempDutyForm.reason || null,
+        officeId: form.officeId,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        reason: form.reason || null,
       },
     });
+    if (result.error) throw new Error(result.errorMessage); // surface inside the form
   };
 
-  const submitDayOff = () => {
-    if (!dayOffForm.date) {
-      notify.warning('Pick the day-off date');
-      return;
-    }
-    grantDayOff({
-      variables: { userId: dayOffUser.id, date: dayOffForm.date, reason: dayOffForm.reason || null },
+  const submitDayOff = async (form) => {
+    const result = await grantDayOff({
+      variables: { userId: dayOffUser.id, date: form.date, reason: form.reason || null },
     });
+    if (result.error) throw new Error(result.errorMessage); // surface inside the form
   };
 
   // Auto-toast handled inside the hook – handlers stay declarative.
@@ -269,27 +199,7 @@ const StaffManagement = () => {
       id: 'employeeId',
       label: 'Emp ID',
       width: 140,
-      render: (row) =>
-        row.employeeId ? (
-          <Typography
-            component="span"
-            sx={{
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              bgcolor: 'action.hover',
-              color: 'text.secondary',
-              px: 0.75,
-              py: 0.25,
-              borderRadius: 1,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {row.employeeId}
-          </Typography>
-        ) : (
-          '—'
-        ),
+      render: (row) => <MonoId value={row.employeeId} />,
     },
     { id: 'name', label: 'Name', width: 200 },
     { id: 'email', label: 'Email', width: 220, sortable: false },
@@ -359,29 +269,13 @@ const StaffManagement = () => {
           <AppButton size="small" variant="outlined" onClick={() => handleOpenEdit(row)}>
             Edit
           </AppButton>
-          <IconButton
-            size="small"
-            aria-label="More actions"
-            onClick={(e) => setMenuState({ rowId: row.id, anchorEl: e.currentTarget })}
-          >
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-          <Menu
-            anchorEl={menuState.anchorEl}
-            open={menuState.rowId === row.id}
-            onClose={() => setMenuState({ rowId: null, anchorEl: null })}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          >
-            <MenuItem onClick={() => openTempDuty(row)}>
-              <ListItemIcon><SwapHorizIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Temporary Duty…</ListItemText>
-            </MenuItem>
-            <MenuItem onClick={() => openDayOff(row)}>
-              <ListItemIcon><EventAvailableIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>Grant Day Off…</ListItemText>
-            </MenuItem>
-          </Menu>
+          <RowActions
+            row={row}
+            items={[
+              { icon: <SwapHorizIcon fontSize="small" />, label: 'Temporary Duty…', onClick: openTempDuty },
+              { icon: <EventAvailableIcon fontSize="small" />, label: 'Grant Day Off…', onClick: openDayOff },
+            ]}
+          />
         </Stack>
       ),
     }
@@ -460,106 +354,36 @@ const StaffManagement = () => {
       </GenericDialog>
 
       {/* Temporary Duty – punch at another site for a date range */}
-      <GenericDialog
+      <FormDialog
         open={!!tempDutyUser}
         onClose={() => setTempDutyUser(null)}
         title={`Temporary Duty – ${tempDutyUser?.name || ''}`}
         loading={assigningDuty}
         maxWidth="xs"
+        fields={TEMP_DUTY_FIELDS(officeOptions)}
+        initialValues={EMPTY_TEMP_DUTY}
+        onSubmit={submitTempDuty}
+        submitLabel="Assign Temp Duty"
       >
         {tempDutyUser?.temporaryAssignment?.office && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             An active temp duty exists. Assigning a new one replaces it.
           </Alert>
         )}
-        <Stack spacing={2}>
-          <TextField
-            select
-            required
-            label="Temporary Site"
-            value={tempDutyForm.officeId}
-            onChange={(e) => setTempDutyForm({ ...tempDutyForm, officeId: e.target.value })}
-            fullWidth
-          >
-            {(officeData?.offices || []).map((off) => (
-              <MenuItem key={off.id} value={off.id}>{off.name}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            type="date"
-            required
-            label="From"
-            value={tempDutyForm.startDate}
-            onChange={(e) => setTempDutyForm({ ...tempDutyForm, startDate: e.target.value })}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-          <TextField
-            type="date"
-            required
-            label="To"
-            value={tempDutyForm.endDate}
-            onChange={(e) => setTempDutyForm({ ...tempDutyForm, endDate: e.target.value })}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-          <TextField
-            label="Reason (optional)"
-            value={tempDutyForm.reason}
-            onChange={(e) => setTempDutyForm({ ...tempDutyForm, reason: e.target.value })}
-            fullWidth
-            helperText="Staff is notified instantly with these details"
-          />
-        </Stack>
-        <AppButton
-          variant="contained"
-          color="primary"
-          onClick={submitTempDuty}
-          loading={assigningDuty}
-          fullWidth
-          sx={{ mt: 3 }}
-        >
-          Assign Temp Duty
-        </AppButton>
-      </GenericDialog>
+      </FormDialog>
 
       {/* Day Off – exempt from absence on a specific date */}
-      <GenericDialog
+      <FormDialog
         open={!!dayOffUser}
         onClose={() => setDayOffUser(null)}
         title={`Grant Day Off – ${dayOffUser?.name || ''}`}
         loading={grantingDayOff}
         maxWidth="xs"
-      >
-        <Stack spacing={2}>
-          <TextField
-            type="date"
-            required
-            label="Date"
-            value={dayOffForm.date}
-            onChange={(e) => setDayOffForm({ ...dayOffForm, date: e.target.value })}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-          <TextField
-            label="Reason (optional)"
-            value={dayOffForm.reason}
-            onChange={(e) => setDayOffForm({ ...dayOffForm, reason: e.target.value })}
-            fullWidth
-            helperText="Excluded from absent counts; staff sees it as EXEMPT"
-          />
-        </Stack>
-        <AppButton
-          variant="contained"
-          color="primary"
-          onClick={submitDayOff}
-          loading={grantingDayOff}
-          fullWidth
-          sx={{ mt: 3 }}
-        >
-          Grant Day Off
-        </AppButton>
-      </GenericDialog>
+        fields={DAY_OFF_FIELDS}
+        initialValues={EMPTY_DAY_OFF}
+        onSubmit={submitDayOff}
+        submitLabel="Grant Day Off"
+      />
 
     </Box>
   );

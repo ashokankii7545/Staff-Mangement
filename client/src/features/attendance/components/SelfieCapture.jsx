@@ -1,7 +1,7 @@
+import AppButton from '../../../shared/ui/AppButton';
 import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -213,7 +213,7 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
       </Typography>
 
       <Stack direction="row" spacing={1} sx={{ width: '100%' }}>
-        <Button
+        <AppButton
           fullWidth
           onClick={capture}
           variant="contained"
@@ -231,7 +231,7 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
         >
           <CameraAltIcon sx={{ fontSize: 18, mr: 1, verticalAlign: 'text-bottom' }} />
           {buttonText}
-        </Button>
+        </AppButton>
 
         {allowUpload && (
           <>
@@ -242,7 +242,7 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
               style={{ display: 'none' }}
               onChange={handleFileUpload}
             />
-            <Button
+            <AppButton
               variant="outlined"
               onClick={() => fileInputRef.current?.click()}
               disabled={isPunching}
@@ -250,7 +250,7 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
               sx={{ minWidth: 0, px: 1.5, borderRadius: 2 }}
             >
               <PhotoLibraryOutlinedIcon fontSize="small" />
-            </Button>
+            </AppButton>
           </>
         )}
       </Stack>

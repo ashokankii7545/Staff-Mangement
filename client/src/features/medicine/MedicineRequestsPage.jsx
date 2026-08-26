@@ -113,18 +113,15 @@ const MedicineRequestsPage = () => {
   const [staffFilter, setStaffFilter] = useState('ALL');
   const [requestOpen, setRequestOpen] = useState(false);
   const [reviewTarget, setReviewTarget] = useState(null);
-  const [reviewStatus, setReviewStatus] = useState('ORDERED');
-  const [feedback, setFeedback] = useState('');
 
-  const openReview = (row) => {
-    setReviewTarget(row);
-    setReviewStatus(row.status === 'PENDING' ? 'ORDERED' : row.status === 'ORDERED' ? 'SUPPLIED' : 'REJECTED');
-    setFeedback('');
-  };
+  // Smart default: PENDING → ORDERED next step; ORDERED → SUPPLIED; else REJECT
+  const reviewNextStatus =
+    reviewTarget?.status === 'PENDING' ? 'ORDERED' : reviewTarget?.status === 'ORDERED' ? 'SUPPLIED' : 'REJECTED';
+
+  const openReview = (row) => setReviewTarget(row);
 
   const [reviewMedicine, { loading: reviewing }] = useAppMutation(REVIEW_MEDICINE_REQUEST, {
     successMessage: 'Stock request updated',
-    onCompleted: () => setReviewTarget(null),
     refetchQueries: [
       { query: GET_ALL_MEDICINE_REQUESTS, variables: { status: statusTab } },
       { query: GET_MY_MEDICINE_REQUESTS },
@@ -132,11 +129,6 @@ const MedicineRequestsPage = () => {
     onError: (err) => notify.error(err.message),
   });
 
-  const submitReview = () => {
-    reviewMedicine({
-      variables: { id: reviewTarget.id, status: reviewStatus, adminFeedback: feedback.trim() },
-    });
-  };
   // ── Columns ─────────────────────────────────────────────────────────────
   const staffColumns = [
     { id: 'medicineName', label: 'Medicine', width: 200, render: (r) => (
@@ -270,40 +262,30 @@ const MedicineRequestsPage = () => {
 
 
       {/* Admin Review Dialog */}
-      <GenericDialog open={!!reviewTarget} onClose={() => setReviewTarget(null)} title="Review Request" loading={reviewing} maxWidth="xs">
-        {reviewTarget && (
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">Medicine</Typography>
-              <Typography variant="body1">{reviewTarget.medicineName} {reviewTarget.strength && `(${reviewTarget.strength})`}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">Quantity</Typography>
-              <Typography variant="body1">{reviewTarget.quantity} {reviewTarget.unit}</Typography>
-            </Box>
-            <TextField
-              select
-              fullWidth
-              label="Action"
-              value={reviewStatus}
-              onChange={(e) => setReviewStatus(e.target.value)}
-            >
-              <MenuItem value="ORDERED">Mark as Ordered</MenuItem>
-              <MenuItem value="SUPPLIED">Mark as Supplied</MenuItem>
-              <MenuItem value="REJECTED">Reject</MenuItem>
-            </TextField>
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Feedback (Optional)"
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-            />
-            <AppButton variant="contained" onClick={submitReview} loading={reviewing}>Save Review</AppButton>
-          </Stack>
-        )}
-      </GenericDialog>
+      <ReviewDialog
+        open={!!reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        title="Review Request"
+        loading={reviewing}
+        details={[
+          {
+            label: 'Medicine',
+            value: `${reviewTarget?.medicineName ?? ''}${reviewTarget?.strength ? ` (${reviewTarget.strength})` : ''}`,
+          },
+          { label: 'Quantity', value: `${reviewTarget?.quantity ?? ''} ${reviewTarget?.unit ?? ''}` },
+        ]}
+        options={[
+          { value: 'ORDERED', label: 'Mark as Ordered' },
+          { value: 'SUPPLIED', label: 'Mark as Supplied' },
+          { value: 'REJECTED', label: 'Reject' },
+        ]}
+        initialDecision={reviewNextStatus}
+        onSubmit={(decision, feedbackText) =>
+          reviewMedicine({
+            variables: { id: reviewTarget.id, status: decision, adminFeedback: feedbackText },
+          })
+        }
+      />
     </Box>
   );
 };

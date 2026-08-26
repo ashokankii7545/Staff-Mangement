@@ -1,8 +1,8 @@
+import AppButton from '../../../shared/ui/AppButton';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
@@ -27,9 +27,9 @@ const VPNWarningDialog = ({ open, onClose, message }) => (
       </Typography>
     </DialogContent>
     <DialogActions>
-      <Button onClick={onClose} variant="contained" color="error">
+      <AppButton onClick={onClose} variant="contained" color="error">
         Understood
-      </Button>
+      </AppButton>
     </DialogActions>
   </Dialog>
 );

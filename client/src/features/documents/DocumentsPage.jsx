@@ -4,7 +4,6 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
-import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
@@ -19,7 +18,7 @@ import GenericDialog from '../../shared/ui/GenericDialog';
 import PageHeader from '../../shared/ui/PageHeader';
 import AppButton from '../../shared/ui/AppButton';
 import StatusBadge from '../../shared/ui/StatusBadge';
-import { GenericFormEngine, useNotification } from '../../shared/ui';
+import { GenericFormEngine, useNotification, ReviewDialog } from '../../shared/ui';
 import { useAppQuery, useAppMutation } from '../../shared/hooks';
 import { useAuth } from '../../shared/auth/AuthContext';
 import { GET_MY_DOCUMENTS, GET_ALL_DOCUMENTS } from '../../graphql/queries';
@@ -45,8 +44,6 @@ const DocumentsPage = () => {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [reviewTarget, setReviewTarget] = useState(null);
-  const [reviewStatus, setReviewStatus] = useState('VERIFIED');
-  const [feedback, setFeedback] = useState('');
 
   const [uploadDocument, { loading: uploading }] = useAppMutation(UPLOAD_DOCUMENT, {
     successMessage: 'Document uploaded – the owner has been notified',
@@ -63,16 +60,9 @@ const DocumentsPage = () => {
 
   const [reviewDocument, { loading: reviewing }] = useAppMutation(REVIEW_DOCUMENT, {
     successMessage: 'Document reviewed',
-    onCompleted: () => setReviewTarget(null),
     refetchQueries: [{ query: GET_ALL_DOCUMENTS }, { query: GET_MY_DOCUMENTS }],
     onError: (err) => notify.error(err.message),
   });
-
-  const openReview = (row) => {
-    setReviewTarget(row);
-    setReviewStatus('VERIFIED');
-    setFeedback('');
-  };
 
   // Fields live inside the component so the file picker can raise toasts
   const uploadFields = [
@@ -94,7 +84,7 @@ const DocumentsPage = () => {
       label: 'File',
       gridSize: { xs: 12 },
       render: ({ value, onChange }) => (
-        <Button
+        <AppButton
           variant="outlined"
           component="label"
           startIcon={<UploadFileOutlinedIcon />}
@@ -118,7 +108,7 @@ const DocumentsPage = () => {
               reader.readAsDataURL(file);
             }}
           />
-        </Button>
+        </AppButton>
       ),
     },
   ];
@@ -248,36 +238,41 @@ const DocumentsPage = () => {
       </GenericDialog>
 
       {/* Admin review dialog */}
-      <GenericDialog
+      <ReviewDialog
         open={!!reviewTarget}
-        onClose={() => !reviewing && setReviewTarget(null)}
+        onClose={() => setReviewTarget(null)}
         title="Review Document"
-        maxWidth="xs"
+        loading={reviewing}
+        details={[
+          {
+            label: 'Document',
+            value: `${reviewTarget?.title ?? ''} (${CATEGORY_LABEL[reviewTarget?.category] || reviewTarget?.category || ''})`,
+          },
+        ]}
+        options={[
+          { value: 'VERIFIED', label: 'Verify' },
+          { value: 'REJECTED', label: 'Reject' },
+        ]}
+        initialDecision="VERIFIED"
+        feedbackLabel="Remarks (Optional)"
+        feedbackRows={2}
+        onSubmit={(decision, remarks) =>
+          reviewDocument({
+            variables: { id: reviewTarget.id, status: decision, adminFeedback: remarks },
+          })
+        }
       >
-        {reviewTarget && (
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">Document</Typography>
-              <Typography variant="body1">{reviewTarget.title} ({CATEGORY_LABEL[reviewTarget.category] || reviewTarget.category})</Typography>
-            </Box>
-            <AppButton variant="outlined" component="a" href={reviewTarget.fileUrl} target="_blank" rel="noopener">
-              Open Document
-            </AppButton>
-            <TextField select fullWidth label="Decision" value={reviewStatus} onChange={(e) => setReviewStatus(e.target.value)}>
-              <MenuItem value="VERIFIED">Verify</MenuItem>
-              <MenuItem value="REJECTED">Reject</MenuItem>
-            </TextField>
-            <TextField fullWidth multiline rows={2} label="Remarks (Optional)" value={feedback} onChange={(e) => setFeedback(e.target.value)} />
-            <AppButton
-              variant="contained"
-              loading={reviewing}
-              onClick={() => reviewDocument({ variables: { id: reviewTarget.id, status: reviewStatus, adminFeedback: feedback.trim() } })}
-            >
-              Save Review
-            </AppButton>
-          </Stack>
-        )}
-      </GenericDialog>
+        <AppButton
+          variant="outlined"
+          component="a"
+          href={reviewTarget?.fileUrl}
+          target="_blank"
+          rel="noopener"
+          fullWidth
+        >
+          Open Document
+        </AppButton>
+      </ReviewDialog>
     </Box>
   );
 };

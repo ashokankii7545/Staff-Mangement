@@ -1,10 +1,10 @@
+import AppButton from '../../../shared/ui/AppButton';
 import { useAppQuery, useAppMutation } from '../../../shared/hooks';
 import React from 'react';
 import Card from '@mui/material/Card';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Skeleton from '@mui/material/Skeleton';
 import CheckIcon from '@mui/icons-material/Check';
@@ -96,7 +96,7 @@ const PendingApprovalsCard = () => {
           </Typography>
         </Stack>
 
-        <Button
+        <AppButton
           size="small"
           endIcon={<ArrowForwardIcon sx={{ fontSize: 14 }} />}
           onClick={() => navigate('/approvals')}
@@ -108,7 +108,7 @@ const PendingApprovalsCard = () => {
           }}
         >
           View queue
-        </Button>
+        </AppButton>
       </Stack>
 
       <Stack spacing={1}>
@@ -175,7 +175,7 @@ const PendingApprovalsCard = () => {
 
               {/* Action Buttons */}
               <Stack direction="row" spacing={1}>
-                <Button
+                <AppButton
                   size="small"
                   variant="outlined"
                   disabled={reviewing}
@@ -191,8 +191,8 @@ const PendingApprovalsCard = () => {
                   }}
                 >
                   Decline
-                </Button>
-                <Button
+                </AppButton>
+                <AppButton
                   size="small"
                   variant="contained"
                   disabled={reviewing}
@@ -208,7 +208,7 @@ const PendingApprovalsCard = () => {
                   }}
                 >
                   Approve
-                </Button>
+                </AppButton>
               </Stack>
             </Box>
           );

@@ -21,30 +21,11 @@ import GenericDialog from '../../shared/ui/GenericDialog';
 import { GET_ALL_LEAVE_REQUESTS, GET_ALL_ATTENDANCE, GET_PENDING_USERS, GET_OFFICES } from '../../graphql/queries';
 import { REVIEW_LEAVE_REQUEST, REVIEW_ATTENDANCE, REVIEW_USER_SIGNUP } from '../../graphql/mutations';
 import { ON_LEAVE_REQUEST_ADDED } from '../../graphql/subscriptions';
-import { useNotification } from '../../shared/ui';
+import ConfirmDialog from '../../shared/ui/ConfirmDialog';
+import { useNotification, MonoId } from '../../shared/ui';
 
-/** Consistent Employee-ID chip – monospace badge used across all tables */
-const renderEmpId = (id) =>
-  id ? (
-    <Typography
-      component="span"
-      sx={{
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        bgcolor: 'action.hover',
-        color: 'text.secondary',
-        px: 0.75,
-        py: 0.25,
-        borderRadius: 1,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {id}
-    </Typography>
-  ) : (
-    '—'
-  );
+/** Consistent Employee-ID chip – shared monospace badge (see shared/ui/MonoId) */
+const renderEmpId = (id) => <MonoId value={id} />;
 
 const ApprovalsPage = () => {
   const notify = useNotification();
@@ -362,31 +343,17 @@ const ApprovalsPage = () => {
         )}
       </Card>
 
-      <GenericDialog
+      <ConfirmDialog
         open={dialogOpen}
         onClose={handleCloseDialog}
+        onConfirm={handleSubmit}
+        title={`${actionStatus === 'APPROVED' ? 'Approve' : 'Reject'} Request`}
+        description={`Are you sure you want to ${actionStatus.toLowerCase()} this ${actionType.toLowerCase()} request?`}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        variant={actionStatus === 'APPROVED' ? 'success' : 'danger'}
         loading={reviewing}
-        title={actionStatus === 'APPROVED' ? 'Approve Request' : 'Reject Request'}
-        actions={
-          <>
-            <AppButton variant="outlined" color="inherit" onClick={handleCloseDialog} disabled={reviewing}>
-              Cancel
-            </AppButton>
-            <AppButton
-              colorPreset={actionStatus === 'APPROVED' ? 'success' : 'danger'}
-              loading={reviewing}
-              onClick={handleSubmit}
-            >
-              Confirm
-            </AppButton>
-          </>
-        }
-        maxWidth="xs"
       >
-        <Typography variant="body1" sx={{ mb: 2 }}>
-          Are you sure you want to {actionStatus.toLowerCase()} this {actionType.toLowerCase()} request?
-        </Typography>
-        
         {actionType === 'SIGNUP' && actionStatus === 'APPROVED' && (
           <TextField
             select
@@ -416,7 +383,7 @@ const ApprovalsPage = () => {
           onChange={(e) => setFeedback(e.target.value)}
           fullWidth
         />
-      </GenericDialog>
+      </ConfirmDialog>
     </Box>
   );
 };

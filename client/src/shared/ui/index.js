@@ -20,6 +20,11 @@ export { default as AdvancedLoader } from './AdvancedLoader';
 
 export { GenericFormEngine } from './GenericFormEngine';
 
+// ── v2 additions – kill the last copy-paste patterns ──
+export { default as RowActions } from './RowActions';
+export { default as FormDialog } from './FormDialog';
+export { default as ReviewDialog } from './ReviewDialog';
+export { default as MonoId } from './MonoId';
 
 export * from './NotificationProvider';
 

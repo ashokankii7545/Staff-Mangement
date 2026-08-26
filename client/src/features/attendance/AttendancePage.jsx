@@ -1,3 +1,4 @@
+import AppButton from '../../shared/ui/AppButton';
 import { useAppQuery } from '../../shared/hooks';
 import { useState } from 'react';
 
@@ -6,7 +7,6 @@ import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Grid2';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
 import Avatar from '@mui/material/Avatar';
 import LoginIcon from '@mui/icons-material/Login';

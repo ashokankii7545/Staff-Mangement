@@ -5,7 +5,6 @@ import Grid from '@mui/material/Grid2';
 import Card from '@mui/material/Card';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuth } from '../../shared/auth/AuthContext';
@@ -294,13 +293,13 @@ const StaffDashboard = () => {
             value={`${totalAvailableLeaves} Days Total`}
             meta={`Casual: ${balances.casual} | Sick: ${balances.sick} | Earned: ${balances.earned}`}
             action={
-              <Button
+              <AppButton
                 size="small"
                 onClick={() => setLeaveModalOpen(true)}
                 sx={{ p: 0, fontSize: '0.6875rem', color: 'primary.main', fontWeight: 600, minWidth: 'auto' }}
               >
                 + Apply
-              </Button>
+              </AppButton>
             }
           />
         </Grid>
@@ -402,9 +401,9 @@ const StaffDashboard = () => {
                     Upcoming Holidays
                   </Typography>
                 </Stack>
-                <Button size="small" onClick={() => navigate('/holidays')} sx={{ fontSize: '0.75rem', p: 0 }}>
+                <AppButton size="small" onClick={() => navigate('/holidays')} sx={{ fontSize: '0.75rem', p: 0 }}>
                   View All
-                </Button>
+                </AppButton>
               </Stack>
 
               {upcomingHolidays.length === 0 ? (
@@ -459,9 +458,9 @@ const StaffDashboard = () => {
                     My Leave Requests
                   </Typography>
                 </Stack>
-                <Button size="small" onClick={() => navigate('/leaves')} sx={{ fontSize: '0.75rem', p: 0 }}>
+                <AppButton size="small" onClick={() => navigate('/leaves')} sx={{ fontSize: '0.75rem', p: 0 }}>
                   View All
-                </Button>
+                </AppButton>
               </Stack>
 
               {myRecentLeaves.length === 0 ? (
@@ -479,9 +478,9 @@ const StaffDashboard = () => {
                   <Typography variant="body2" color="text.secondary">
                     No leave requests yet.
                   </Typography>
-                  <Button size="small" variant="outlined" onClick={() => setLeaveModalOpen(true)} sx={{ fontSize: '0.75rem' }}>
+                  <AppButton size="small" variant="outlined" onClick={() => setLeaveModalOpen(true)} sx={{ fontSize: '0.75rem' }}>
                     Apply for Leave
-                  </Button>
+                  </AppButton>
                 </Box>
               ) : (
                 <Stack spacing={1.5} sx={{ flex: 1 }}>
@@ -543,7 +542,7 @@ const StaffDashboard = () => {
           showToolbar={false}
         />
 
-        <Button
+        <AppButton
           fullWidth
           variant="outlined"
           startIcon={<HistoryOutlinedIcon fontSize="small" />}
@@ -551,7 +550,7 @@ const StaffDashboard = () => {
           sx={{ mt: 1.5 }}
         >
           View Full Attendance History
-        </Button>
+        </AppButton>
       </Card>
 
       {/* Attendance Biometric Punch Dialog */}

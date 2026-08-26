@@ -1,7 +1,7 @@
+import AppButton from '../../../shared/ui/AppButton';
 import React, { useState, useEffect } from 'react';
 import Card from '@mui/material/Card';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
@@ -113,7 +113,7 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
           />
 
           {onRegularize && (
-            <Button
+            <AppButton
               size="small"
               onClick={onRegularize}
               startIcon={<EditCalendarOutlinedIcon sx={{ fontSize: 15 }} />}
@@ -127,7 +127,7 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
               }}
             >
               Regularize Punch
-            </Button>
+            </AppButton>
           )}
         </Stack>
       </Stack>
@@ -250,7 +250,7 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
       {/* Action Buttons */}
       <Stack direction="row" spacing={1.5} justifyContent="center">
         {!hasClockedIn && (
-          <Button
+          <AppButton
             variant="contained"
             fullWidth
             size="large"
@@ -266,11 +266,11 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
             }}
           >
             Clock In (Selfie & GPS)
-          </Button>
+          </AppButton>
         )}
 
         {isOnShift && (
-          <Button
+          <AppButton
             variant="contained"
             fullWidth
             size="large"
@@ -286,7 +286,7 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
             }}
           >
             Clock Out (End Shift)
-          </Button>
+          </AppButton>
         )}
 
         {hasClockedOut && (
