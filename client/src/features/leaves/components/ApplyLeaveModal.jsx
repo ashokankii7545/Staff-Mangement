@@ -67,7 +67,7 @@ const ApplyLeaveModal = ({ open, onClose, targetUserId = null, onSuccess }) => {
     onError: (err) => notify.error(err.message),
   });
 
-  const staffUsers = (usersData?.users || []).filter((u) => u.role === 'STAFF');
+  const staffUsers = (usersData?.users?.data || []).filter((u) => u.role === 'STAFF');
   const selectedUser = isAdmin
     ? staffUsers.find((u) => u.id === form.userId)
     : meData?.me || authUser;

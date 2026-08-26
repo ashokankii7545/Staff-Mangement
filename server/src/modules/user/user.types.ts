@@ -7,15 +7,15 @@ export const userTypes = /* GraphQL */ `
 
   type User {
     id: ID!
-    employeeId: String!
-    name: String!
-    email: String!
-    role: Role!
+    employeeId: String
+    name: String
+    email: String
+    role: Role
     department: String
     assignedOffice: Office
     avatar: String
-    isActive: Boolean!
-    approvalStatus: ApprovalStatus!
+    isActive: Boolean
+    approvalStatus: ApprovalStatus
     approvalNote: String
     themePreference: String
     """Route keys this account may NOT open (withdrawn by admin). Empty = full access."""
@@ -61,5 +61,10 @@ export const userTypes = /* GraphQL */ `
     shiftStartTime: String
     shiftEndTime: String
     restrictedPages: [String!]
+  }
+
+  type PaginatedUsers {
+    data: [User!]!
+    pageInfo: PageInfo!
   }
 `;

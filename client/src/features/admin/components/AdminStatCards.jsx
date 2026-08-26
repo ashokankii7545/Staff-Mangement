@@ -51,11 +51,11 @@ const AdminStatCards = ({ selectedOffice = 'ALL', dateRange }) => {
       return { total, present, late, absent, onLeave };
     }
 
-    if (!usersData?.users) {
+    if (!usersData?.users?.data) {
       return { total: 0, present: 0, late: 0, absent: 0, onLeave: 0 };
     }
 
-    const filteredUsers = usersData.users
+    const filteredUsers = usersData.users.data
       .filter((u) => u.role === 'STAFF')
       .filter((u) => selectedOffice === 'ALL' || u.assignedOffice?.id === selectedOffice);
 

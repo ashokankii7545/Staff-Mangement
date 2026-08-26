@@ -43,4 +43,17 @@ export const commonTypes = /* GraphQL */ `
     NATIONAL
     OPTIONAL
   }
+
+  input PaginationInput {
+    page: Int
+    limit: Int
+    search: String
+  }
+
+  type PageInfo {
+    totalCount: Int!
+    totalPages: Int!
+    currentPage: Int!
+    hasNextPage: Boolean!
+  }
 `;

@@ -8,7 +8,7 @@
 export const rootTypes = /* GraphQL */ `
   type Query {
     me: User
-    users(department: String, isActive: Boolean): [User!]!
+    users(pagination: PaginationInput, isActive: Boolean): PaginatedUsers!
     user(id: ID!): User
     """Public: resolve a login identifier (email/employee ID) to an avatar URL"""
     checkAvatar(identifier: String!): String

@@ -162,35 +162,43 @@ export const GET_ALL_ATTENDANCE = gql`
 `;
 
 export const GET_USERS = gql`
-  query GetUsers($isActive: Boolean) {
-    users(isActive: $isActive) {
-      id
-      employeeId
-      name
-      email
-      role
-      restrictedPages
-      isActive
-      approvalStatus
-      avatar
-      createdAt
-      assignedOffice {
+  query GetUsers($isActive: Boolean, $pagination: PaginationInput) {
+    users(isActive: $isActive, pagination: $pagination) {
+      data {
         id
+        employeeId
         name
-      }
-      temporaryAssignment {
-        office {
+        email
+        role
+        restrictedPages
+        isActive
+        approvalStatus
+        avatar
+        createdAt
+        assignedOffice {
           id
           name
         }
-        startDate
-        endDate
-        reason
+        temporaryAssignment {
+          office {
+            id
+            name
+          }
+          startDate
+          endDate
+          reason
+        }
+        leaveBalances {
+          casual
+          sick
+          earned
+        }
       }
-      leaveBalances {
-        casual
-        sick
-        earned
+      pageInfo {
+        totalCount
+        currentPage
+        totalPages
+        hasNextPage
       }
     }
   }

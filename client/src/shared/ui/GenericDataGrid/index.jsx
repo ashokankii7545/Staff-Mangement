@@ -80,6 +80,7 @@ export const GenericDataGrid = ({
   sortBy,
   sortDirection = 'asc',
   onSortChange,
+  onSearch,
   selectable = false,
   selectedIds = [],
   onSelectionChange,
@@ -109,6 +110,13 @@ export const GenericDataGrid = ({
   useEffect(() => {
     setVisibleColumns(columns.map((col) => col.id));
   }, [columns]);
+
+  // Call onSearch when debounced string changes for server-side
+  useEffect(() => {
+    if (onSearch) {
+      onSearch(debouncedSearchText);
+    }
+  }, [debouncedSearchText, onSearch]);
 
   const isServerSide = !!totalCount && !!onPageChange;
   const currentPage = isServerSide ? page : internalPage;
@@ -258,9 +266,9 @@ export const GenericDataGrid = ({
         value={searchText}
         onChange={(e) => {
           setSearchText(e.target.value);
-          setInternalPage(0);
+          if (!isServerSide) setInternalPage(0);
+          if (isServerSide && onPageChange) onPageChange(0);
         }}
-        disabled={isServerSide}
         sx={{ width: { xs: '100%', sm: 250 } }}
         InputProps={{
           startAdornment: (

@@ -114,6 +114,48 @@ export class UserRepository extends BaseRepository<IUser> {
           .sort({ name: 1 }) as Promise<IUserDocument[]>;
       }),
 
+    listUsersPaginated: (
+      pagination: { page?: number; limit?: number; search?: string } = {},
+      isActive?: boolean
+    ) => this.exec('listUsersPaginated', async () => {
+      const page = Math.max(1, pagination.page || 1);
+      const limit = Math.max(1, pagination.limit || 10);
+      const skip = (page - 1) * limit;
+
+      const filter: Record<string, unknown> = {};
+      if (isActive !== undefined) filter.isActive = isActive;
+      
+      if (pagination.search) {
+        const regex = new RegExp(pagination.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        filter.$or = [
+          { name: regex },
+          { email: regex },
+          { employeeId: regex }
+        ];
+      }
+
+      const [totalCount, data] = await Promise.all([
+        UserModel.countDocuments(filter),
+        UserModel.find(filter)
+          // Notice we don't .populate('assignedOffice') here, relying on DataLoader instead!
+          .sort({ name: 1 })
+          .skip(skip)
+          .limit(limit) as Promise<IUserDocument[]>
+      ]);
+
+      const totalPages = Math.ceil(totalCount / limit);
+
+      return {
+        data,
+        pageInfo: {
+          totalCount,
+          currentPage: page,
+          totalPages,
+          hasNextPage: page < totalPages,
+        }
+      };
+    }),
+
     /** Self-signups waiting for an admin decision. */
     listPendingSignups: (): Promise<IUserDocument[]> =>
       this.exec('listPendingSignups', () =>

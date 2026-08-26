@@ -1,11 +1,13 @@
 import type { Request } from 'express';
 import { getAuthUser } from '../shared/guards/auth.guard.js';
 import type { IUserDocument } from '../modules/user/user.model.js';
+import { createDataLoaders, type DataLoaders } from '../shared/utils/dataloader.js';
 
 /** Shape of the GraphQL execution context every resolver receives. */
 export interface ContextValue {
   user: IUserDocument | null;
   clientIp: string;
+  loaders: DataLoaders;
 }
 
 /** Best-effort client IP (proxy-aware) for rate limiting & VPN checks. */
@@ -20,7 +22,7 @@ export const extractClientIp = (req: Request): string => {
 /** HTTP context factory used by expressMiddleware. */
 export const buildHttpContext = async ({ req }: { req: Request }): Promise<ContextValue> => {
   const user = await getAuthUser(req.headers.authorization);
-  return { user, clientIp: extractClientIp(req) };
+  return { user, clientIp: extractClientIp(req), loaders: createDataLoaders() };
 };
 
 /** WebSocket context factory used by graphql-ws useServer(). */
@@ -31,5 +33,5 @@ export const buildWsContext = async (ctx: {
   const token =
     (params.authorization as string | undefined) ?? (params.Authorization as string | undefined) ?? '';
   const user = await getAuthUser(token);
-  return { user, clientIp: '' };
+  return { user, clientIp: '', loaders: createDataLoaders() };
 };

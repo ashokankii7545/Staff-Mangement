@@ -58,7 +58,7 @@ const WhosInTodayBoard = ({ selectedOffice = 'ALL', dateRange }) => {
   const lateThreshold = settings?.lateThresholdMinutes || 15;
 
   const staffList = useMemo(() => {
-    if (!usersData?.users) return [];
+    if (!usersData?.users?.data) return [];
 
     // Group attendance records by user
     const attendanceMap = new Map();
@@ -69,7 +69,7 @@ const WhosInTodayBoard = ({ selectedOffice = 'ALL', dateRange }) => {
       attendanceMap.get(att.user.id).push(att);
     });
 
-    return usersData.users
+    return usersData.users.data
       .filter((u) => u.role === 'STAFF')
       .filter((u) => {
         if (selectedOffice === 'ALL') return true;

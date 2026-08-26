@@ -72,7 +72,20 @@ const EMPTY_TEMP_DUTY = { officeId: '', startDate: '', endDate: '', reason: '' }
 const EMPTY_DAY_OFF = { date: '', reason: '' };
 
 const StaffManagement = () => {
-  const { data, loading, error, refetch } = useAppQuery(GET_USERS);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [search, setSearch] = useState('');
+
+  const { data, loading, error, refetch } = useAppQuery(GET_USERS, {
+    variables: { 
+      pagination: {
+        page: page + 1,
+        limit: rowsPerPage,
+        search
+      }
+    }
+  });
+
   const { data: officeData } = useAppQuery(GET_OFFICES);
   const [addDialog, setAddDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
@@ -296,7 +309,13 @@ const StaffManagement = () => {
       <Card variant="outlined">
         <GenericDataGrid
           title="Staff Roster"
-          rows={data?.users || []}
+          rows={data?.users?.data || []}
+          totalCount={data?.users?.pageInfo?.totalCount || 0}
+          page={page}
+          onPageChange={setPage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={setRowsPerPage}
+          onSearch={setSearch}
           columns={columns}
           loading={loading}
           error={error}

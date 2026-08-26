@@ -45,6 +45,13 @@ class UserService {
     return userRepository.queries.listUsers(filters);
   }
 
+  public listUsersPaginated(
+    pagination?: { page?: number; limit?: number; search?: string },
+    isActive?: boolean
+  ): Promise<{ data: IUserDocument[]; pageInfo: { totalCount: number; currentPage: number; totalPages: number; hasNextPage: boolean } }> {
+    return userRepository.queries.listUsersPaginated(pagination, isActive);
+  }
+
   public getUser(id: string): Promise<IUserDocument | null> {
     return userRepository.queries.findById(id, { populate: ['assignedOffice'] });
   }

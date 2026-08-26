@@ -12,11 +12,11 @@ export const userResolvers = {
 
     users: async (
       _parent: unknown,
-      args: { isActive?: boolean },
+      args: { pagination?: { page?: number; limit?: number; search?: string }; isActive?: boolean },
       ctx: ContextValue,
     ) => {
       requireAdmin(ctx.user);
-      return userService.listUsers({ isActive: args.isActive });
+      return userService.listUsersPaginated(args.pagination, args.isActive);
     },
 
     user: async (_parent: unknown, args: { id: string }, ctx: ContextValue) => {
@@ -71,7 +71,7 @@ export const userResolvers = {
     },
 
     /**
-     * TEMPORARY duty reassignment – staff can punch at another site between
+     * TEMPORARY duty reassignment ?" staff can punch at another site between
      * dates WITHOUT touching their permanent assignment.
      */
     assignTemporaryDuty: async (
@@ -124,8 +124,24 @@ export const userResolvers = {
 
   User: {
     id: (parent: IUserDocument) => parent._id ?? parent.id,
-    assignedOffice: (parent: IUserDocument) => userService.resolveAssignedOffice(parent),
-    temporaryAssignment: (parent: IUserDocument) => userService.resolveTempAssignment(parent),
+    assignedOffice: (parent: IUserDocument, _args: unknown, ctx: ContextValue) => {
+      const ref = parent.assignedOffice;
+      if (!ref) return null;
+      if ((ref as unknown as { _id?: unknown })._id) return ref;
+      return ctx.loaders.officeLoader.load(String(ref));
+    },
+    temporaryAssignment: (parent: IUserDocument, _args: unknown, ctx: ContextValue) => {
+      const ta = parent.temporaryAssignment;
+      if (!ta || !ta.office) return ta;
+      const tOffice = ta.office;
+      if ((tOffice as unknown as { _id?: unknown })._id) return ta;
+      
+      // Async resolution using dataloader for temporaryAssignment.office
+      return (async () => {
+        const loadedOffice = await ctx.loaders.officeLoader.load(String(tOffice));
+        return { ...ta, office: loadedOffice };
+      })();
+    },
     leaveBalances: (parent: IUserDocument) => ({
       // Return exactly what is in DB; default legacy docs correctly.
       casual: parent.leaveBalances?.casual ?? 12,
