@@ -1,10 +1,10 @@
 import DataLoader from 'dataloader';
 import { UserModel, IUserDocument } from '../../modules/user/user.model.js';
-import { OfficeModel, IOfficeDocument } from '../../modules/office/office.model.js';
+import { OfficeModel, type OfficeDocument } from '../../modules/office/office.model.js';
 
 export interface DataLoaders {
   userLoader: DataLoader<string, IUserDocument | null>;
-  officeLoader: DataLoader<string, IOfficeDocument | null>;
+  officeLoader: DataLoader<string, OfficeDocument | null>;
 }
 
 export function createDataLoaders(): DataLoaders {
@@ -15,7 +15,7 @@ export function createDataLoaders(): DataLoaders {
       return keys.map((key) => userMap.get(String(key)) || null);
     }),
     
-    officeLoader: new DataLoader<string, IOfficeDocument | null>(async (keys) => {
+    officeLoader: new DataLoader<string, OfficeDocument | null>(async (keys) => {
       const offices = await OfficeModel.find({ _id: { $in: keys } });
       const officeMap = new Map(offices.map((o) => [String(o._id), o]));
       return keys.map((key) => officeMap.get(String(key)) || null);

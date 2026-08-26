@@ -11,8 +11,8 @@ import {
   performSecureLogout,
 } from './errorHandler';
 
-const HTTP_URI = import.meta.env.VITE_GRAPHQL_HTTP_URI || 'http://localhost:8080/graphql';
-const WS_URI = import.meta.env.VITE_GRAPHQL_WS_URI || 'ws://localhost:8080/graphql';
+const HTTP_URI = import.meta.env.GRAPHQL_HTTP_URI || 'http://localhost:8080/graphql';
+const WS_URI = import.meta.env.GRAPHQL_WS_URI || 'ws://localhost:8080/graphql';
 
 const uploadLink = createUploadLink({
   uri: HTTP_URI,
