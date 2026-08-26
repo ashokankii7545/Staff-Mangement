@@ -1,0 +1,35 @@
+import type { Request } from 'express';
+import { getAuthUser } from '../shared/guards/auth.guard.js';
+import type { IUserDocument } from '../modules/user/user.model.js';
+
+/** Shape of the GraphQL execution context every resolver receives. */
+export interface ContextValue {
+  user: IUserDocument | null;
+  clientIp: string;
+}
+
+/** Best-effort client IP (proxy-aware) for rate limiting & VPN checks. */
+export const extractClientIp = (req: Request): string => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip ?? req.socket?.remoteAddress ?? '';
+};
+
+/** HTTP context factory used by expressMiddleware. */
+export const buildHttpContext = async ({ req }: { req: Request }): Promise<ContextValue> => {
+  const user = await getAuthUser(req.headers.authorization);
+  return { user, clientIp: extractClientIp(req) };
+};
+
+/** WebSocket context factory used by graphql-ws useServer(). */
+export const buildWsContext = async (ctx: {
+  connectionParams?: Record<string, unknown> | undefined;
+}): Promise<ContextValue> => {
+  const params = (ctx.connectionParams ?? {}) as Record<string, unknown>;
+  const token =
+    (params.authorization as string | undefined) ?? (params.Authorization as string | undefined) ?? '';
+  const user = await getAuthUser(token);
+  return { user, clientIp: '' };
+};
