@@ -8,7 +8,6 @@ import { AuthProvider, useAuth } from './shared/auth/AuthContext';
 import Layout from './layout/Layout';
 import { ApiErrorListener, NetworkAlert } from './shared/ui';
 import { AppErrorBoundary } from './shared/lib/ErrorHandler';
-import { TelemetryTracker } from './shared/lib/TelemetryTracker';
 import { AppRouter } from './shared/routes/AppRouter';
 
 import { Navigate } from 'react-router-dom';

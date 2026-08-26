@@ -10,7 +10,6 @@ import FormControl from '@mui/material/FormControl';
 import AddIcon from '@mui/icons-material/Add';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../shared/auth/AuthContext';
@@ -26,7 +25,7 @@ const AdminHeader = ({
   onAddStaff,
   onApplyLeave,
 }) => {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const navigate = useNavigate();
   const { data: settingsData } = useAppQuery(GET_SETTINGS);
   const { data: officesData } = useAppQuery(GET_OFFICES);

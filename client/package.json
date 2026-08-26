@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix"
   },
   "dependencies": {
     "@apollo/client": "^3.14.1",
@@ -15,7 +17,7 @@
     "@hookform/resolvers": "^5.9.1",
     "@mui/icons-material": "^6.1.0",
     "@mui/material": "^6.5.0",
-    "@mui/system": "^7.3.11",
+    "@mui/system": "^6.5.0",
     "@mui/x-date-pickers": "^7.29.4",
     "@react-oauth/google": "^0.13.5",
     "ahooks": "^3.9.7",

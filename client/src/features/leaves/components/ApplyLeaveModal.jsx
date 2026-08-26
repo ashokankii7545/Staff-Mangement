@@ -56,7 +56,7 @@ const ApplyLeaveModal = ({ open, onClose, targetUserId = null, onSuccess }) => {
       { query: GET_MY_LEAVE_REQUESTS },
       { query: GET_DASHBOARD_STATS },
     ],
-    successMessage: (data) =>
+    successMessage: (_data) =>
       isAdmin
         ? 'Leave request submitted on behalf of staff member! 📅'
         : 'Leave application submitted successfully! 📅',

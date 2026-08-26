@@ -16,7 +16,6 @@ import Chip from '@mui/material/Chip';
 import GenericDataGrid from '../../shared/ui/GenericDataGrid';
 import AppButton from '../../shared/ui/AppButton';
 import PageHeader from '../../shared/ui/PageHeader';
-import GenericDialog from '../../shared/ui/GenericDialog';
 
 import { GET_ALL_LEAVE_REQUESTS, GET_ALL_ATTENDANCE, GET_PENDING_USERS, GET_OFFICES } from '../../graphql/queries';
 import { REVIEW_LEAVE_REQUEST, REVIEW_ATTENDANCE, REVIEW_USER_SIGNUP } from '../../graphql/mutations';
@@ -61,7 +60,7 @@ const ApprovalsPage = () => {
     refetch: refetchPendingUsers,
   } = useAppQuery(GET_PENDING_USERS, { fetchPolicy: 'network-only' });
 
-  const [reviewSignup, { loading: reviewingSignup }] = useAppMutation(REVIEW_USER_SIGNUP, {
+  const [reviewSignup] = useAppMutation(REVIEW_USER_SIGNUP, {
     successMessage: 'Signup request processed',
     onCompleted: () => {
       handleCloseDialog();

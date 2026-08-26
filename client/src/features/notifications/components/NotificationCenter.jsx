@@ -8,7 +8,6 @@ import Badge from '@mui/material/Badge';
 import Tooltip from '@mui/material/Tooltip';
 import Popover from '@mui/material/Popover';
 import Avatar from '@mui/material/Avatar';
-import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
 import DoneAllIcon from '@mui/icons-material/DoneAll';

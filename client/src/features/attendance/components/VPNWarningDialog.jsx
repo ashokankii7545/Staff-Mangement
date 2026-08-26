@@ -5,7 +5,6 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
-import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import GppBadIcon from '@mui/icons-material/GppBad';
 

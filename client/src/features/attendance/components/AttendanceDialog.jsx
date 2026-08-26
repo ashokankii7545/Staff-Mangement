@@ -1,4 +1,3 @@
-import AppButton from '../../../shared/ui/AppButton';
 import { useAppMutation } from '../../../shared/hooks';
 import React, { useState, useEffect, useCallback } from 'react';
 
@@ -9,16 +8,13 @@ import DialogContent from '@mui/material/DialogContent';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
-import Alert from '@mui/material/Alert';
 import AdvancedLoader from '../../../shared/ui/AdvancedLoader';
 import StatusBadge from '../../../shared/ui/StatusBadge';
 import LoginIcon from '@mui/icons-material/Login';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
-import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import SelfieCapture from './SelfieCapture';
 import VPNWarningDialog from './VPNWarningDialog';
 import { useGeolocation } from '../../../shared/hooks/useGeolocation';
@@ -31,7 +27,7 @@ import { useNotification } from '../../../shared/ui';
 
 const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
   const notify = useNotification();
-  const { location, error: geoError, loading: geoLoading, requestLocation } = useGeolocation();
+  const { location, error: _geoError, loading: _geoLoading, requestLocation } = useGeolocation();
   const { verifyFace } = useFaceRecognition();
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
@@ -227,7 +223,12 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
                 </Typography>
               </Box>
             ) : (
-              <SelfieCapture onCapture={handleCaptureAndPunch} isPunching={submitting} />
+              <SelfieCapture 
+                onCapture={handleCaptureAndPunch} 
+                isPunching={submitting} 
+                allowUpload={false}
+                requireCenteredFace={true}
+              />
             )}
           </Stack>
         </DialogContent>

@@ -57,7 +57,6 @@ import GenericFileUploader from '../GenericFileUploader';
  *   props? (passthrough to MUI) }
  */
 
-const TEXT_TYPES = new Set(['text', 'email', 'password', 'number', 'tel', 'url', 'multiline']);
 
 const FieldRenderer = memo(({ field, control, errors, values, isSubmitting, disabled }) => {
   const { name, type = 'text', label, options, condition, arrayFields, render, ...rest } = field;

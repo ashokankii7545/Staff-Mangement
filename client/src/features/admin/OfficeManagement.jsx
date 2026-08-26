@@ -239,7 +239,7 @@ const OfficeManagement = () => {
         onClose={() => setOfficeToDelete(null)}
         onConfirm={handleDelete}
         title="Delete Site"
-        description={officeToDelete ? `\"${officeToDelete.name}\" will be removed. Staff assigned to this site will fall back to global settings.` : ''}
+        description={officeToDelete ? `"${officeToDelete.name}" will be removed. Staff assigned to this site will fall back to global settings.` : ''}
         confirmText="Delete"
         variant="danger"
       />

@@ -2,11 +2,10 @@ import { useAppMutation } from '../../shared/hooks';
 import { useState } from 'react';
 
 import { useNavigate } from 'react-router-dom';
-import { gql } from '@apollo/client';
+import { gql, useApolloClient } from '@apollo/client';
 import { Button, TextField } from '@mui/material';
 import GenericDialog from '../../shared/ui/GenericDialog';
 import SelfieCapture from '../attendance/components/SelfieCapture';
-import { useApolloClient } from '@apollo/client';
 
 const CHECK_AVATAR = gql`
   query CheckAvatar($identifier: String!) {
@@ -40,7 +39,7 @@ import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import InputAdornment from '@mui/material/InputAdornment';
 
 import { z } from 'zod';
-import { GenericFormEngine } from '../../shared/ui';
+import { GenericFormEngine, useNotification } from '../../shared/ui';
 import {
   LOGIN,
   GOOGLE_LOGIN,
@@ -62,19 +61,7 @@ const signupSchema = z.object({
     .min(8, 'Minimum 8 characters')
     .regex(/[A-Za-z]/, 'Must contain at least one letter')
     .regex(/[0-9]/, 'Must contain at least one number'),
-
 });
-
-const DEPARTMENTS = [
-  'General',
-  'Engineering',
-  'Design',
-  'Marketing',
-  'Sales',
-  'Operations',
-  'Finance',
-  'Human Resources',
-];
 
 /** Distinguish "awaiting admin approval" from hard failures */
 const getApprovalCode = (err) => {
@@ -84,6 +71,7 @@ const getApprovalCode = (err) => {
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const notify = useNotification();
   const apolloClient = useApolloClient();
   const [baselinePic, setBaselinePic] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -204,17 +192,32 @@ const LoginPage = () => {
 
   const signInFields = [
     {
-      name: 'employeeId', label: 'Employee ID', type: 'text', required: true,
-      placeholder: 'e.g. ADMIN001',
-      props: {
-        InputProps: {
-          startAdornment: (
-            <InputAdornment position="start">
-              <BadgeIcon color="action" />
-            </InputAdornment>
-          ),
-        },
-      },
+      // Custom render so typing can ALSO trigger the live avatar lookup
+      name: 'employeeId', label: 'Employee ID', type: 'custom', required: true,
+      gridSize: { xs: 12 },
+      render: ({ value, onChange, error }) => (
+        <TextField
+          fullWidth
+          size="small"
+          required
+          label="Employee ID"
+          placeholder="e.g. ADMIN001"
+          value={value ?? ''}
+          error={!!error}
+          helperText={error}
+          onChange={(e) => {
+            onChange(e.target.value);
+            handleLoginIdChange(e.target.value);
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <BadgeIcon color="action" />
+              </InputAdornment>
+            ),
+          }}
+        />
+      ),
     },
     {
       name: 'password', label: 'Password', type: 'password', required: true,
@@ -386,6 +389,35 @@ const LoginPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Forgot Password – wires the server's requestPasswordReset flow */}
+      <GenericDialog
+        open={forgotOpen}
+        onClose={() => !resetting && setForgotOpen(false)}
+        title="Reset Password"
+        maxWidth="xs"
+      >
+        <Stack spacing={2}>
+          <Alert severity="info">
+            Enter the email linked to your account and we will send a reset link.
+          </Alert>
+          <TextField
+            required
+            type="email"
+            label="Email Address"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            fullWidth
+          />
+          <Button
+            variant="contained"
+            disabled={!resetEmail || resetting}
+            onClick={handleForgotSubmit}
+          >
+            {resetting ? 'Sending…' : 'Send Reset Link'}
+          </Button>
+        </Stack>
+      </GenericDialog>
     </Box>
   );
 };

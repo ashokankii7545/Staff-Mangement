@@ -40,6 +40,7 @@ const ConfirmDialog = forwardRef(({
   inputConfirmation = '',
   loading = false,
   icon: CustomIcon,
+  children,
   sx,
   ...rest
 }, ref) => {

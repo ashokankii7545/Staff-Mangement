@@ -25,11 +25,11 @@ const AdminStatCards = ({ selectedOffice = 'ALL', dateRange }) => {
     pollInterval: 15000,
   });
 
-  const { data: usersData, loading: usersLoading } = useAppQuery(GET_USERS, {
+  const { data: usersData, loading: _usersLoading } = useAppQuery(GET_USERS, {
     variables: { isActive: true },
   });
 
-  const { data: attData, loading: attLoading } = useAppQuery(GET_ALL_ATTENDANCE, {
+  const { data: attData, loading: _attLoading } = useAppQuery(GET_ALL_ATTENDANCE, {
     variables: { startDate, endDate },
     pollInterval: 10000,
   });

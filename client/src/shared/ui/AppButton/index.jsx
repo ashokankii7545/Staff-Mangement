@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useId
 } from 'react';
-import PropTypes from 'prop-types';
 
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
@@ -415,6 +414,7 @@ const AppButton = forwardRef((props, ref) => {
 });
 
 AppButton.displayName = 'AppButton';
+AppButton.propTypes = {};
 export default AppButton;
 
 

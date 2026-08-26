@@ -17,11 +17,9 @@ import AddIcon from '@mui/icons-material/Add';
 
 import { GET_OFFICES } from '../../graphql/queries';
 import { CREATE_OFFICE, UPDATE_OFFICE, DELETE_OFFICE } from '../../graphql/mutations';
-import MapPicker from '../../shared/ui/MapPicker';
 import PageHeader from '../../shared/ui/PageHeader';
 import AppButton from '../../shared/ui/AppButton';
 import GenericDialog from '../../shared/ui/GenericDialog';
-import ConfirmDialog from '../../shared/ui/ConfirmDialog';
 import EmptyState from '../../shared/ui/EmptyState';
 import AdvancedLoader from '../../shared/ui/AdvancedLoader';
 import { useNotification } from '../../shared/ui';
@@ -41,12 +39,10 @@ const OfficeManagement = () => {
   // Auto-toast on error comes free via useAppMutation (no manual onError)
   const [createOffice] = useAppMutation(CREATE_OFFICE);
   const [updateOffice] = useAppMutation(UPDATE_OFFICE);
-  const [deleteOffice] = useAppMutation(DELETE_OFFICE, { successMessage: 'Office deleted' });
 
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [officeToDelete, setOfficeToDelete] = useState(null);
   const [form, setForm] = useState(initialForm);
 
   const offices = data?.offices || [];
@@ -100,15 +96,6 @@ const OfficeManagement = () => {
     handleClose();
   };
 
-  const handleDelete = async () => {
-    const { error } = await deleteOffice({ variables: { id: officeToDelete?.id } });
-    if (error) {
-      notify.error(error.message);
-      return;
-    }
-    setOfficeToDelete(null);
-    refetch();
-  };
 
   return (
     <Box>
@@ -147,7 +134,6 @@ const OfficeManagement = () => {
                       <IconButton size="small" onClick={() => handleOpen(office)} color="primary" aria-label={`Edit ${office.name}`}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" onClick={() => setOfficeToDelete(office)} color="error" aria-label={`Delete ${office.name}`}>
                         <DeleteOutlineIcon fontSize="small" />
                       </IconButton>
                     </Box>

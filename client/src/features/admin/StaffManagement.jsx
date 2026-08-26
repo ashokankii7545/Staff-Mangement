@@ -25,7 +25,6 @@ import GenericDialog from '../../shared/ui/GenericDialog';
 import { GenericFormEngine, RowActions, FormDialog, MonoId } from '../../shared/ui';
 import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
-import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 // ── JSON-driven form configs live in ONE shared file so the dashboard's

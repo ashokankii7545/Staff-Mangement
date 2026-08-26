@@ -1,7 +1,7 @@
 import { alpha } from '@mui/material/styles';
 import { COLORS } from '../tokens/colors';
 
-export const dataDisplayOverrides = (mode, shadows) => {
+export const dataDisplayOverrides = (mode, _shadows) => {
   // Interactive blue follows the mode (Carbon rule for dark themes)
   const BRAND = mode === 'light' ? COLORS.brandBlue60 : COLORS.brandBlue40;
 

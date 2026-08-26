@@ -1,6 +1,6 @@
 import { COLORS } from '../tokens/colors';
 
-export const feedbackOverrides = (mode, shadows) => ({
+export const feedbackOverrides = (mode, _shadows) => ({
   MuiDialog: {
     styleOverrides: {
       paper: {

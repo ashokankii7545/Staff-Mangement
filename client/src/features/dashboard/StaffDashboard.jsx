@@ -27,7 +27,6 @@ import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
 import BeachAccessOutlinedIcon from '@mui/icons-material/BeachAccessOutlined';
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
 import EditCalendarOutlinedIcon from '@mui/icons-material/EditCalendarOutlined';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LocalPharmacyOutlinedIcon from '@mui/icons-material/LocalPharmacyOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
@@ -52,7 +51,7 @@ const StaffDashboard = () => {
     variables: { year: dayjs().year() },
   });
   const { data: settingsData } = useAppQuery(GET_SETTINGS);
-  const { data: regData, refetch: refetchRegs } = useAppQuery(GET_MY_REGULARIZATIONS);
+  const { refetch: refetchRegs } = useAppQuery(GET_MY_REGULARIZATIONS);
   const { data: leavesData } = useAppQuery(GET_MY_LEAVE_REQUESTS, { pollInterval: 30000 });
 
   const [punchDialog, setPunchDialog] = useState({ open: false, type: 'CLOCK_IN' });
@@ -84,8 +83,6 @@ const StaffDashboard = () => {
     dailyRequiredHours = dayjs(`2000-01-01T${shiftEnd}`).diff(dayjs(`2000-01-01T${shiftStart}`), 'hour', true);
     if (dailyRequiredHours < 0) dailyRequiredHours += 24;
   }
-  const expectedTotal = presentDays * dailyRequiredHours;
-  const shortfall = Math.max(0, expectedTotal - totalHoursWorked).toFixed(1);
 
   const balances = user?.leaveBalances || { casual: 12, sick: 6, earned: 0 };
   const totalAvailableLeaves = balances.casual + balances.sick + balances.earned;

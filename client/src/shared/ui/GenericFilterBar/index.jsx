@@ -35,7 +35,7 @@ export const GenericFilterBar = ({
   onClearAll,
 }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const _isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // ahooks useDebounceFn – one debounced dispatcher, no re-render loops
   const { run: debouncedSearch, flush } = useDebounceFn(

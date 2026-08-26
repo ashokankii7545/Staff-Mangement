@@ -2,13 +2,10 @@ import { useState } from 'react';
 import dayjs from 'dayjs';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Chip from '@mui/material/Chip';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
 import LocalPharmacyIcon from '@mui/icons-material/LocalPharmacy';
@@ -18,7 +15,7 @@ import GenericDialog from '../../shared/ui/GenericDialog';
 import PageHeader from '../../shared/ui/PageHeader';
 import AppButton from '../../shared/ui/AppButton';
 import { useAppQuery, useAppMutation } from '../../shared/hooks';
-import { GenericFormEngine, useNotification } from '../../shared/ui';
+import { GenericFormEngine, useNotification, ReviewDialog } from '../../shared/ui';
 import { z } from 'zod';
 import { useAuth } from '../../shared/auth/AuthContext';
 import {
@@ -68,7 +65,7 @@ const REQUEST_MEDICINE_FIELDS = [
 ];
 
 const MedicineRequestsPage = () => {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const notify = useNotification();
 
   // ── Data ────────────────────────────────────────────────────────────────

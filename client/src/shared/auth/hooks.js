@@ -24,7 +24,7 @@ export const useRoles = () => {
 };
 
 export const usePermissions = () => {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const { currentRole } = useRoles();
 
   const permissions = useMemo(() => {

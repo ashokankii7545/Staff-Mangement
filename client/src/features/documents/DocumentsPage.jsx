@@ -5,8 +5,6 @@ import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
 import IconButton from '@mui/material/IconButton';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
@@ -44,6 +42,7 @@ const DocumentsPage = () => {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [reviewTarget, setReviewTarget] = useState(null);
+  const openReview = (row) => setReviewTarget(row);
 
   const [uploadDocument, { loading: uploading }] = useAppMutation(UPLOAD_DOCUMENT, {
     successMessage: 'Document uploaded – the owner has been notified',

@@ -125,7 +125,7 @@ export const GenericDataGrid = ({
           if (val && typeof val === 'object') {
             try {
               val = JSON.stringify(val);
-            } catch (e) {
+            } catch (_e) {
               val = '';
             }
           }
@@ -179,7 +179,7 @@ export const GenericDataGrid = ({
     setInternalPage(0);
   };
 
-  const handleSelectAll = (checked) => {
+  const _handleSelectAll = (checked) => {
     onSelectionChange?.(checked ? paginatedRows.map((row) => row.id) : []);
   };
 

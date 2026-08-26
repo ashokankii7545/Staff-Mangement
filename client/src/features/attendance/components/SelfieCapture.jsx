@@ -8,7 +8,6 @@ import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CameraswitchIcon from '@mui/icons-material/Cameraswitch';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import * as faceapi from 'face-api.js';
 import {useEffect} from 'react';
