@@ -1,6 +1,12 @@
 import dayjs from 'dayjs';
 import { DEFAULTS } from '../../config/constants.js';
-import { GeofenceError, NotFoundError, ValidationError, VPNDetectedError } from '../../shared/errors/app.errors.js';
+import {
+  ConflictError,
+  GeofenceError,
+  NotFoundError,
+  ValidationError,
+  VPNDetectedError,
+} from '../../shared/errors/app.errors.js';
 import { logger } from '../../shared/logger/logger.js';
 import { todayISO } from '../../shared/utils/date.util.js';
 import { checkGeofence, type GeoPoint } from '../../shared/utils/geofence.util.js';
@@ -235,45 +241,58 @@ class AttendanceService {
     const autoApproved =
       !hasIdentityFlag && faceVerified && settings?.autoApproveAttendance !== false;
 
-    const attendance = await attendanceRepository.queries.create({
-      user: userId as never,
-      punchedOffice: (punchedOffice ?? null) as never,
-      isCoverDuty,
-      type,
-      selfieUrl,
-      location: {
-        latitude: input.latitude,
-        longitude: input.longitude,
-        accuracy: input.accuracy,
-        address: input.address || '',
-        withinGeofence,
-        distanceFromOffice: distance,
-        branchName,
-        isCoverDuty,
-      },
-      ipAddress: ipAddress ?? '',
-      vpnDetected,
-      vpnCheckDetails: {
-        vpn: vpnResult.vpn,
-        proxy: vpnResult.proxy,
-        tor: vpnResult.tor,
-        webrtcMismatch,
-        timezoneMismatch,
-      },
-      browserTimezone: input.browserTimezone || '',
-      date: today,
-      faceMatched: typeof input.faceMatched === 'boolean' ? input.faceMatched : undefined,
-      faceMatchScore: typeof input.faceMatchScore === 'number' ? input.faceMatchScore : undefined,
-      approvalStatus: autoApproved ? 'APPROVED' : 'PENDING',
-      // Flagged punches carry the reason so the reviewer sees WHY instantly.
-      ...(hasIdentityFlag
-        ? {
-            adminComments: vpnDetected
-              ? 'Auto-flagged: possible VPN/proxy or device mismatch'
-              : 'Auto-flagged: face did not match registered profile photo',
-          }
-        : {}),
-    });
+    const attendance = await (async () => {
+      try {
+        return await attendanceRepository.queries.create({
+          user: userId as never,
+          punchedOffice: (punchedOffice ?? null) as never,
+          isCoverDuty,
+          type,
+          selfieUrl,
+          location: {
+            latitude: input.latitude,
+            longitude: input.longitude,
+            accuracy: input.accuracy,
+            address: input.address || '',
+            withinGeofence,
+            distanceFromOffice: distance,
+            branchName,
+            isCoverDuty,
+          },
+          ipAddress: ipAddress ?? '',
+          vpnDetected,
+          vpnCheckDetails: {
+            vpn: vpnResult.vpn,
+            proxy: vpnResult.proxy,
+            tor: vpnResult.tor,
+            webrtcMismatch,
+            timezoneMismatch,
+          },
+          browserTimezone: input.browserTimezone || '',
+          date: today,
+          faceMatched: typeof input.faceMatched === 'boolean' ? input.faceMatched : undefined,
+          faceMatchScore: typeof input.faceMatchScore === 'number' ? input.faceMatchScore : undefined,
+          approvalStatus: autoApproved ? 'APPROVED' : 'PENDING',
+          // Flagged punches carry the reason so the reviewer sees WHY instantly.
+          ...(hasIdentityFlag
+            ? {
+                adminComments: vpnDetected
+                  ? 'Auto-flagged: possible VPN/proxy or device mismatch'
+                  : 'Auto-flagged: face did not match registered profile photo',
+              }
+            : {}),
+        });
+      } catch (error) {
+        // ⚡ Race fallback: the unique index caught a simultaneous duplicate
+        // punch that slipped past the findOne pre-check above.
+        if (error instanceof ConflictError || (error as { code?: number }).code === 11000) {
+          throw new ValidationError(
+            `Already ${type === 'CLOCK_IN' ? 'clocked in' : 'clocked out'} today`,
+          );
+        }
+        throw error;
+      }
+    })();
 
     await attendance.populate('user');
 

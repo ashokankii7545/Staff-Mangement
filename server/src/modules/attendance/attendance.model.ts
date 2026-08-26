@@ -93,6 +93,11 @@ const attendanceSchema = new Schema<IAttendance>(
 attendanceSchema.index({ user: 1, date: 1, type: 1 });
 attendanceSchema.index({ date: 1 });
 
+// ⚡ HARD DB GUARANTEE against double-punch races: the findOne pre-check in
+// the service is advisory UX only – two simultaneous punches are stopped by
+// THIS unique index (surfaces as duplicate-key error → friendly message).
+attendanceSchema.index({ user: 1, date: 1, type: 1 }, { unique: true });
+
 export const AttendanceModel: Model<IAttendance> =
   (mongoose.models.Attendance as Model<IAttendance>) ||
   mongoose.model<IAttendance>('Attendance', attendanceSchema);

@@ -59,6 +59,13 @@ class EnvConfig {
   private constructor() {
     dotenv.config();
 
+    // ── Business timezone guard ──────────────────────────────────────────────
+    // Attendance day-boundaries ("today", shift-start lateness, monthly
+    // accrual) must follow BUSINESS time, not the deploy-host clock – cloud
+    // VMs are UTC by default and would shift every Indian date by ~5½ hours.
+    // POSIX hosts honour TZ at runtime; Windows devs are already on IST.
+    process.env.TZ = process.env.TZ || 'Asia/Kolkata';
+
     // ── Boot-time guard: never run half-configured ──
     const missing = REQUIRED_VARS.filter((key) => !process.env[key]);
     if (missing.length > 0) {

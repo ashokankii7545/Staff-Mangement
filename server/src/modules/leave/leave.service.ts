@@ -226,9 +226,8 @@ class LeaveService {
       try {
         const typeKey = leaveRequest.leaveType.toLowerCase();
         const days = daysBetweenInclusive(leaveRequest.startDate, leaveRequest.endDate);
-        const staff = await userRepository.queries.findById(requesterId);
-        const current = Number(staff?.leaveBalances?.[typeKey as 'casual' | 'sick' | 'earned']) || 0;
-        await userRepository.queries.setLeaveBalance(requesterId, typeKey, current + days);
+        // ⚡ ATOMIC $inc refund – no read-modify-write race window.
+        await userRepository.queries.addLeaveBalance(requesterId, typeKey, days);
       } catch (balanceErr) {
         logger.error('⚠️ Leave balance refund failed – cancellation STILL applied', balanceErr);
       }
@@ -282,11 +281,18 @@ class LeaveService {
         const requesterId = String((leaveRequest.user as unknown as { _id: unknown })._id);
         const typeKey = leaveRequest.leaveType.toLowerCase();
         const days = daysBetweenInclusive(leaveRequest.startDate, leaveRequest.endDate);
-        // Read-modify-write floored at zero – balances can never go negative.
-        const staff = await userRepository.queries.findById(requesterId);
-        const current =
-          Number(staff?.leaveBalances?.[typeKey as 'casual' | 'sick' | 'earned']) || 0;
-        await userRepository.queries.setLeaveBalance(requesterId, typeKey, Math.max(0, current - days));
+        // ⚡ ATOMIC guard-decrement – two admins approving concurrently can
+        // never both pass; floored-at-zero is enforced by the $gte filter.
+        const deducted = await userRepository.queries.deductLeaveBalanceIfAvailable(
+          requesterId,
+          typeKey,
+          days,
+        );
+        if (!deducted) {
+          logger.warn(
+            `⚠️ Insufficient ${typeKey} balance during approval for ${requesterId} – approval STILL applied per policy`,
+          );
+        }
       } catch (balanceErr) {
         logger.error('⚠️ Leave balance deduction failed – approval STILL applied', balanceErr);
       }

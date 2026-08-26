@@ -7,6 +7,7 @@ import { useServer } from 'graphql-ws/use/ws';
 import { env } from './config/env.js';
 import { database } from './config/db.js';
 import { logger } from './shared/logger/logger.js';
+import { mailer } from './shared/mail/mailer.js';
 import { schema } from './graphql/schema.js';
 import { buildWsContext } from './graphql/context.js';
 import { createBaseApp, attachGraphql } from './app.js';
@@ -40,6 +41,11 @@ class Application {
   public async start(): Promise<void> {
     logger.info(`Booting AttendEase API (${env.nodeEnv})…`);
 
+    if (env.nodeEnv === 'production' && !mailer.configured) {
+      // Loud, early warning – password-reset mails silently no-op otherwise.
+      logger.warn('SMTP not configured – ALL emails will only be logged to the console!');
+    }
+
     // 1. Database first – nothing works without it.
     await database.connect();
 
@@ -59,6 +65,8 @@ class Application {
     // 3. Apollo with clean drain for BOTH http & ws transports.
     this.apollo = new ApolloServer({
       schema,
+      // Hardening: hide the API surface (introspection/landing page) in prod.
+      introspection: env.nodeEnv !== 'production',
       plugins: [
         ApolloServerPluginDrainHttpServer({ httpServer: this.httpServer }),
         {
@@ -118,6 +126,18 @@ class Application {
     }
   }
 }
+
+// ── Process-level resilience ────────────────────────────────────────────────
+process.on('unhandledRejection', (reason) => {
+  // Log loudly but keep serving – a rejected promise somewhere in a
+  // fire-and-forget email/notification should never kill the API.
+  logger.error('Unhandled promise rejection', reason);
+});
+process.on('uncaughtException', (err) => {
+  // Node docs: state is undefined after uncaughtException – exit gracefully.
+  logger.error('Uncaught exception – initiating shutdown', err);
+  void Application.getInstance().shutdown();
+});
 
 // ── Bootstrap ───────────────────────────────────────────────────────────────
 Application.getInstance()

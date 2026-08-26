@@ -16,7 +16,14 @@ export const getAuthUser = async (
   if (!token) return null;
   try {
     const decoded = verifyAuthToken(token);
-    return await userRepository.queries.findById(decoded.id ?? '');
+    const user = await userRepository.queries.findById(decoded.id ?? '');
+    // EDGE CASE GUARD: a live token must STILL belong to an ACTIVE + APPROVED
+    // account – deactivating someone (or rejecting their signup) takes effect
+    // immediately instead of waiting for the 7-day token to expire.
+    if (!user || !user.isActive || user.approvalStatus !== 'APPROVED') {
+      return null;
+    }
+    return user;
   } catch {
     // Invalid/expired token == anonymous, never a crash.
     return null;

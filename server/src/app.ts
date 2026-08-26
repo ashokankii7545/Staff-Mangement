@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { expressMiddleware } from '@apollo/server/express4';
 import type { ApolloServer } from '@apollo/server';
 import { env } from './config/env.js';
+import { database } from './config/db.js';
 import { buildHttpContext } from './graphql/context.js';
 
 /** Global abuse brake – login/signup have their own stricter limits inside. */
@@ -24,10 +25,23 @@ const graphqlRateLimiter = rateLimit({
 export const createBaseApp = (): Express => {
   const app = express();
 
+  // Behind nginx/Render/Railway: req.ip must be the REAL client IP,
+  // otherwise the rate limiter buckets everyone and VPN checks break.
+  app.set('trust proxy', 1);
+
   // ── Standard HTTP security headers ──
   // CSP stays disabled: GraphQL landing page needs inline scripts.
   app.use(helmet({ contentSecurityPolicy: false }));
   app.disable('x-powered-by');
+
+  // Liveness probe for hosts (Render/Railway/Docker healthchecks).
+  app.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      uptimeSeconds: Math.round(process.uptime()),
+      dbConnected: database.isConnected,
+    });
+  });
 
   // Serve uploaded selfies/documents.
   app.use('/uploads', express.static(path.join(process.cwd(), env.uploadDir)));
@@ -60,4 +74,9 @@ export const attachGraphql = (
       context: buildHttpContext,
     }),
   );
+
+  // JSON 404 fallback – must stay LAST so GraphQL routes match first.
+  app.use((_req, res) => {
+    res.status(404).json({ errors: [{ message: 'Route not found.' }] });
+  });
 };

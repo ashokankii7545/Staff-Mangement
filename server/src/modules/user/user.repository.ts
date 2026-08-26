@@ -142,6 +142,37 @@ export class UserRepository extends BaseRepository<IUser> {
         ),
       ),
 
+    /**
+     * ⚡ ATOMIC guard-decrement (race-proof):
+     * Succeeds ONLY if the stored balance is still >= days at the moment of
+     * the update. Two concurrent approvals can never both pass this.
+     */
+    deductLeaveBalanceIfAvailable: (
+      userId: string,
+      typeKey: string,
+      days: number,
+    ): Promise<boolean> =>
+      this.exec('deductLeaveBalanceIfAvailable', async () => {
+        const res = await UserModel.updateOne(
+          { _id: userId, [`leaveBalances.${typeKey}`]: { $gte: days } },
+          { $inc: { [`leaveBalances.${typeKey}`]: -days } },
+        );
+        return res.modifiedCount > 0;
+      }),
+
+    /** ⚡ ATOMIC increment/refund (no read-modify-write window). */
+    addLeaveBalance: (
+      userId: string,
+      typeKey: string,
+      days: number,
+    ): Promise<unknown> =>
+      this.exec('addLeaveBalance', () =>
+        UserModel.updateOne(
+          { _id: userId },
+          { $inc: { [`leaveBalances.${typeKey}`]: days } },
+        ),
+      ),
+
     /** Accrual engine – run pre-built bulk operations. */
     bulkWrite: (ops: Array<Record<string, unknown>>): Promise<unknown> =>
       this.exec('bulkWrite', () => UserModel.bulkWrite(ops as never)),
