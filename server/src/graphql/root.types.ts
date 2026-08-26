@@ -32,6 +32,8 @@ export const rootTypes = /* GraphQL */ `
     allRegularizations(status: ApprovalStatus): [RegularizationRequest!]!
     myMedicineRequests: [MedicineRequest!]!
     allMedicineRequests(status: String): [MedicineRequest!]!
+    """Master medicine catalogue – staff get active-only, admins see all"""
+    medicines(search: String, includeInactive: Boolean): [MedicineCatalog!]!
     pendingUsers: [User!]!
     myNotifications(limit: Int, unreadOnly: Boolean): [Notification!]!
     unreadNotificationsCount: Int!
@@ -62,6 +64,12 @@ export const rootTypes = /* GraphQL */ `
     reviewRegularization(id: ID!, status: ApprovalStatus!, adminFeedback: String): RegularizationRequest!
     requestMedicine(input: MedicineRequestInput!): MedicineRequest!
     reviewMedicineRequest(id: ID!, status: String!, adminFeedback: String): MedicineRequest!
+
+    """Master medicine catalogue – admin managed"""
+    createMedicine(input: MedicineCatalogInput!): MedicineCatalog!
+    updateMedicine(id: ID!, input: MedicineCatalogInput!): MedicineCatalog!
+    removeMedicine(id: ID!): Boolean!
+    restoreMedicine(id: ID!): MedicineCatalog!
     uploadDocument(input: UploadDocumentInput!): StaffDocument!
     deleteMyDocument(id: ID!): Boolean!
     reviewDocument(id: ID!, status: ApprovalStatus!, adminFeedback: String): StaffDocument!

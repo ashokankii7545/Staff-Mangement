@@ -297,20 +297,30 @@ class MailService {
 
       const medStr = `${request.medicineName}${request.strength ? ` (${request.strength})` : ''}`;
       await this.sendTemplateEmail(admins.join(','), {
-        subject: `Action Required: New Stock Request for ${request.medicineName}`,
+        subject:
+          request.isNewMedicine
+            ? `Action Required: New Medicine "${request.medicineName}" requested (not in catalogue)`
+            : `Action Required: New Stock Request for ${request.medicineName}`,
         heading: 'Stock Replenishment Request',
         pill:
-          request.urgency === 'URGENT'
-            ? { label: 'URGENT RESTOCK', tone: 'error' }
-            : { label: 'NEW STOCK REQUEST', tone: 'warning' },
-        introText: `<strong>${request.requestedBy?.name}</strong> has submitted a new stock request. Please review the details below and arrange for supply as soon as possible.`,
+          request.isNewMedicine
+            ? { label: 'NEW MEDICINE – ADD TO CATALOGUE', tone: 'error' }
+            : request.urgency === 'URGENT'
+              ? { label: 'URGENT RESTOCK', tone: 'error' }
+              : { label: 'NEW STOCK REQUEST', tone: 'warning' },
+        introText:
+          request.isNewMedicine
+            ? `<strong>${request.requestedBy?.name}</strong> requested a medicine that is <strong>not yet in your catalogue</strong>. Please review it below and consider adding it to your Medicine Catalog.`
+            : `<strong>${request.requestedBy?.name}</strong> has submitted a new stock request. Please review the details below and arrange for supply as soon as possible.`,
         rows: [
           ['Medicine Item', `<strong>${medStr}</strong>`],
           ['Requested Qty', `${request.quantity} ${request.unit}`],
           ['Urgency Level', request.urgency],
           ...(request.notes ? [['Staff Notes', request.notes] as TemplateRow] : []),
         ],
-        noteText: 'You can update the status of this request to ORDERED or SUPPLIED from the admin dashboard.',
+        noteText: request.isNewMedicine
+          ? 'This medicine was typed in by staff and matched nothing in your catalogue – they may have forgotten to tell you about it earlier. You can add it from Medicine Catalog.'
+          : 'You can update the status of this request to ORDERED or SUPPLIED from the admin dashboard.',
         cta: { text: 'Review Request', path: '/stock' },
       });
     } catch (error) {

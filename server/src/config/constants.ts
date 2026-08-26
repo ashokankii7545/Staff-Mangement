@@ -67,6 +67,32 @@ export type MedicineUrgency = (typeof MEDICINE_URGENCIES)[number];
 
 export const MEDICINE_STATUSES = ['PENDING', 'ORDERED', 'SUPPLIED', 'REJECTED'] as const;
 
+/**
+ * Pharmacy-grade medicine master vocabulary (aligned with Indian retail
+ * pharmacy software & the Drugs & Cosmetics Act 1940 schedules).
+ */
+export const MEDICINE_DOSAGE_FORMS = [
+  'Tablet', 'Capsule', 'Syrup', 'Suspension', 'Drops', 'Injection',
+  'Cream / Ointment / Gel', 'Inhaler', 'Sachet / Powder', 'Lozenges', 'Other',
+] as const;
+
+/** Schedule H / H1 / X need a prescription; OTC is sold over the counter. */
+export const MEDICINE_SCHEDULES = [
+  { value: 'OTC', label: 'OTC (No prescription)' },
+  { value: 'H', label: 'Schedule H (Rx)' },
+  { value: 'H1', label: 'Schedule H1 (Rx + register)' },
+  { value: 'X', label: 'Schedule X (Rx retained)' },
+] as const;
+
+export const MEDICINE_CATEGORIES = [
+  'Analgesic / Antipyretic', 'Antibiotic', 'Antacid / GI', 'Antiallergic',
+  'Antihypertensive', 'Antidiabetic', 'Multivitamin / Supplement',
+  'Respiratory / Cough & Cold', 'Skin / Dermatology', 'Other',
+] as const;
+
+/** Indian medicine GST slabs (HSN 3004): 0% / 5% / 12%. */
+export const MEDICINE_GST_RATES = [0, 5, 12] as const;
+
 /** PubSub channels – one place so publishers/subscribers never drift apart. */
 export const PUBSUB_CHANNELS = {
   LEAVE_REQUEST_ADDED: 'LEAVE_REQUEST_ADDED',

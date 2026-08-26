@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -21,6 +21,7 @@ import { useAuth } from '../../shared/auth/AuthContext';
 import {
   GET_MY_MEDICINE_REQUESTS,
   GET_ALL_MEDICINE_REQUESTS,
+  GET_MEDICINES,
 } from '../../graphql/queries';
 import { REQUEST_MEDICINE, REVIEW_MEDICINE_REQUEST } from '../../graphql/mutations';
 
@@ -29,20 +30,81 @@ const STATUS_COLOR = { PENDING: 'warning', ORDERED: 'info', SUPPLIED: 'success',
 const STATUS_TABS = ['PENDING', 'ORDERED', 'SUPPLIED', 'REJECTED'];
 const UNITS = ['Strips', 'Bottles', 'Units', 'Boxes'];
 
-const REQUEST_MEDICINE_SCHEMA = z.object({
-  medicineName: z.string().min(1, 'Medicine name is required'),
-  strength: z.string().optional(),
-  quantity: z.coerce.number({ invalid_type_error: 'Quantity must be a number' }).min(1, 'Quantity must be at least 1'),
-  unit: z.enum(['Strips', 'Bottles', 'Units', 'Boxes']),
-  urgency: z.enum(['LOW', 'NORMAL', 'URGENT']),
-  notes: z.string().optional(),
-});
+const REQUEST_MEDICINE_SCHEMA = z
+  .object({
+    nameMode: z.enum(['SELECT', 'NEW']),
+    catalogMedicineId: z.string().optional(),
+    medicineName: z.string().optional(),
+    strength: z.string().optional(),
+    quantity: z.coerce.number({ invalid_type_error: 'Quantity must be a number' }).min(1, 'Quantity must be at least 1'),
+    unit: z.enum(['Strips', 'Bottles', 'Units', 'Boxes']),
+    urgency: z.enum(['LOW', 'NORMAL', 'URGENT']),
+    notes: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.nameMode === 'SELECT' && !data.catalogMedicineId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['catalogMedicineId'],
+        message: 'Select a medicine from the list',
+      });
+    }
+    if (data.nameMode === 'NEW' && !(data.medicineName || '').trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['medicineName'],
+        message: 'Type the medicine name',
+      });
+    }
+  });
 
-// Same JSON-driven form engine every other dialog in the app uses
-const REQUEST_MEDICINE_FIELDS = [
-  { name: 'medicineName', type: 'text', label: 'Medicine Name', placeholder: 'e.g. Paracetamol', gridSize: { xs: 12 } },
-  { name: 'strength', type: 'text', label: 'Strength (Optional)', placeholder: 'e.g. 500mg', gridSize: { xs: 12, sm: 6 } },
-  { name: 'quantity', type: 'number', label: 'Quantity', props: { inputProps: { min: 1 } }, gridSize: { xs: 12, sm: 6 } },
+// JSON-driven form – same engine every other dialog uses. Staff either PICKS a
+// medicine from the owner's catalogue (searchable) or flags it as brand-new.
+const buildRequestFields = (medicineOptions) => [
+  {
+    name: 'nameMode',
+    type: 'radio',
+    label: 'Medicine',
+    options: [
+      { value: 'SELECT', label: 'Select from shop list' },
+      { value: 'NEW', label: 'New medicine (not in list)' },
+    ],
+    gridSize: { xs: 12 },
+  },
+  {
+    name: 'catalogMedicineId',
+    type: 'autocomplete',
+    label: 'Search Medicine',
+    options: medicineOptions,
+    helperText: 'Start typing to search the shop catalogue',
+    condition: (values) => values.nameMode === 'SELECT',
+    autocompleteProps: { noOptionsText: 'No match – switch to “New medicine” below' },
+    gridSize: { xs: 12 },
+  },
+  {
+    name: 'medicineName',
+    type: 'text',
+    label: 'Medicine Name *',
+    placeholder: 'e.g. Paracetamol',
+    helperText: 'Owner ko notify hoga ki ye medicine list me nahi hai – wo baad me add kar lega.',
+    condition: (values) => values.nameMode === 'NEW',
+    gridSize: { xs: 12 },
+  },
+  {
+    name: 'strength',
+    type: 'text',
+    label: 'Strength (Optional)',
+    placeholder: 'e.g. 500mg',
+    condition: (values) => values.nameMode === 'NEW',
+    gridSize: { xs: 12, sm: 6 },
+  },
+  {
+    name: 'quantity',
+    type: 'number',
+    label: 'Quantity',
+    props: { inputProps: { min: 1 } },
+    gridSize: { xs: 12, sm: 6 },
+  },
   {
     name: 'unit',
     type: 'select',
@@ -75,6 +137,28 @@ const MedicineRequestsPage = () => {
   });
   const myRequests = myQuery.data?.myMedicineRequests || [];
 
+  // Master catalogue for the staff request picker (active medicines only).
+  const medicinesQuery = useAppQuery(GET_MEDICINES, {
+    skip: isAdmin,
+    fetchPolicy: 'cache-and-network',
+  });
+  const medicineOptions = useMemo(
+    () =>
+      (medicinesQuery.data?.medicines || []).map((m) => ({
+        // Netmeds-style picker label: brand (strength) · form · salt – so staff
+        // can pick the right product even when two brands share a salt.
+        label: [
+          `${m.name}${m.strength ? ` (${m.strength})` : ''}`,
+          m.dosageForm,
+          m.genericName,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        value: m.id,
+      })),
+    [medicinesQuery.data],
+  );
+
   const [statusTab, setStatusTab] = useState('PENDING');
   const adminQuery = useAppQuery(GET_ALL_MEDICINE_REQUESTS, {
     variables: { status: statusTab },
@@ -85,25 +169,31 @@ const MedicineRequestsPage = () => {
 
   // ── Staff request form ──────────────────────────────────────────────────
   const [requestMedicine, { loading: requesting }] = useAppMutation(REQUEST_MEDICINE, {
-    successMessage: 'Request sent to the owner ✓',
+    successMessage: (d) =>
+      d.requestMedicine.isNewMedicine
+        ? 'Request sent ✓ Owner ko "new medicine" alert chala gaya'
+        : 'Request sent to the owner ✓',
     onCompleted: () => setRequestOpen(false),
     refetchQueries: [{ query: GET_MY_MEDICINE_REQUESTS }],
     onError: (err) => notify.error(err.message),
   });
 
+  const REQUEST_FIELDS = buildRequestFields(medicineOptions);
+
   const submitRequest = async (values) => {
-    await requestMedicine({
-      variables: {
-        input: {
-          medicineName: values.medicineName.trim(),
-          strength: (values.strength || '').trim(),
-          quantity: Number(values.quantity),
-          unit: values.unit,
-          urgency: values.urgency,
-          notes: (values.notes || '').trim(),
-        },
-      },
-    });
+    const input = {
+      quantity: Number(values.quantity),
+      unit: values.unit,
+      urgency: values.urgency,
+      notes: (values.notes || '').trim(),
+    };
+    if (values.nameMode === 'SELECT') {
+      input.catalogMedicineId = values.catalogMedicineId;
+    } else {
+      input.medicineName = values.medicineName.trim();
+      input.strength = (values.strength || '').trim();
+    }
+    await requestMedicine({ variables: { input } });
   };
 
   // ── Admin review ────────────────────────────────────────────────────────
@@ -151,7 +241,12 @@ const MedicineRequestsPage = () => {
   const adminColumns = [
     { id: 'medicineName', label: 'Medicine', width: 190, render: (r) => (
         <Box>
-          <Typography variant="body2" fontWeight={600}>{r.medicineName}</Typography>
+          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography variant="body2" fontWeight={600}>{r.medicineName}</Typography>
+            {r.isNewMedicine && (
+              <Chip size="small" label="NEW" color="error" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700 }} />
+            )}
+          </Stack>
           {r.strength && <Typography variant="caption" color="text.secondary">{r.strength}</Typography>}
         </Box>
       ) },
@@ -248,9 +343,10 @@ const MedicineRequestsPage = () => {
         maxWidth="sm"
       >
         <GenericFormEngine
-          fields={REQUEST_MEDICINE_FIELDS}
+          key={requestOpen ? 'request-open' : 'request-closed'}
+          fields={REQUEST_FIELDS}
           schema={REQUEST_MEDICINE_SCHEMA}
-          initialValues={{ medicineName: '', strength: '', quantity: '', unit: 'Strips', urgency: 'NORMAL', notes: '' }}
+          initialValues={{ nameMode: 'SELECT', catalogMedicineId: '', medicineName: '', strength: '', quantity: '', unit: 'Strips', urgency: 'NORMAL', notes: '' }}
           submitLabel="Submit Request"
           hideReset
           onSubmit={submitRequest}
@@ -270,6 +366,12 @@ const MedicineRequestsPage = () => {
             value: `${reviewTarget?.medicineName ?? ''}${reviewTarget?.strength ? ` (${reviewTarget.strength})` : ''}`,
           },
           { label: 'Quantity', value: `${reviewTarget?.quantity ?? ''} ${reviewTarget?.unit ?? ''}` },
+          {
+            label: 'Catalog',
+            value: reviewTarget?.isNewMedicine
+              ? '⚠ Not in your catalogue yet – add it from Medicine Catalog'
+              : '✓ Already in catalogue',
+          },
         ]}
         options={[
           { value: 'ORDERED', label: 'Mark as Ordered' },

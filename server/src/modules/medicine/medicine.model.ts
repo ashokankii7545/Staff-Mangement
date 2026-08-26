@@ -16,6 +16,10 @@ export interface IMedicineRequest {
   notes: string;
   status: (typeof MEDICINE_STATUSES)[number];
   adminFeedback: string;
+  /** Linked master-catalogue entry when the medicine already exists there. */
+  catalogMedicine?: mongoose.Types.ObjectId | null;
+  /** True when the typed medicine is NOT yet in the owner's catalogue. */
+  isNewMedicine: boolean;
   handledBy?: mongoose.Types.ObjectId | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -34,6 +38,8 @@ const medicineRequestSchema = new Schema<IMedicineRequest>(
     notes: { type: String, trim: true, default: '' },
     status: { type: String, enum: [...MEDICINE_STATUSES], default: 'PENDING' },
     adminFeedback: { type: String, trim: true, default: '' },
+    catalogMedicine: { type: Schema.Types.ObjectId, ref: 'MedicineCatalog', default: null },
+    isNewMedicine: { type: Boolean, default: false },
     handledBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true },

@@ -2,16 +2,65 @@ import { ValidationError } from '../../shared/errors/app.errors.js';
 import { mailService } from '../../shared/mail/mail.service.js';
 import { notificationService } from '../notification/notification.service.js';
 import { notificationRepository } from '../notification/notification.repository.js';
+import { saveBase64MedicineImage } from '../../shared/utils/file-upload.util.js';
 import type { MedicineRequestDocument } from './medicine.model.js';
 import { medicineRepository } from './medicine.repository.js';
+import {
+  MedicineCatalogRepository,
+  medicineCatalogRepository,
+} from './medicine.catalog.repository.js';
+import type {
+  IMedicineCatalog,
+  MedicineCatalogDocument,
+} from './medicine.catalog.model.js';
 
 export interface MedicineRequestInputShape {
-  medicineName: string;
+  medicineName?: string;
+  /** Set when staff picks an existing catalogue entry instead of typing. */
+  catalogMedicineId?: string;
   strength?: string;
   quantity: number;
   unit?: string;
   urgency?: string;
   notes?: string;
+}
+
+export interface MedicineCatalogInputShape {
+  /** Brand / trade name, e.g. "Dolo 650" */
+  name: string;
+  /** Generic / salt composition, e.g. "Paracetamol 650mg" */
+  genericName?: string;
+  /** Manufacturer, e.g. "Micro Labs Ltd" */
+  manufacturer?: string;
+  /** Dosage form: Tablet, Capsule, Syrup… */
+  dosageForm?: string;
+  /** e.g. "650mg" */
+  strength?: string;
+  /** Packing, e.g. "Strip of 15 tablets" */
+  packSize?: string;
+  /** Therapeutic class */
+  category?: string;
+  /** OTC | H | H1 | X (Drugs & Cosmetics Act schedule) */
+  schedule?: string;
+  /** Uses / indication */
+  uses?: string;
+  /** WHEN to give, e.g. "1-0-1 after food" */
+  dosageTiming?: string;
+  /** HOW to give, e.g. "Swallow whole with water" */
+  directionsForUse?: string;
+  /** e.g. "Store below 25°C" */
+  storage?: string;
+  /** Side effects / warnings */
+  sideEffects?: string;
+  /** Optional base64 data-URI pack photo (JPG/PNG/WebP ≤3 MB). */
+  imageBase64?: string | null;
+  /** Selling rate per unit (MRP incl. tax) – billing uses this; never shown to staff */
+  price: number;
+  /** Purchase/cost rate per unit (optional) */
+  purchaseRate?: number;
+  /** GST slab: 0 | 5 | 12 */
+  gstRate?: number;
+  isActive?: boolean;
 }
 
 const STATUS_PILL: Record<string, { label: string; tone: 'success' | 'error' | 'info' }> = {
@@ -48,22 +97,46 @@ class MedicineService {
     input: MedicineRequestInputShape,
     requesterId: string,
   ): Promise<MedicineRequestDocument> {
-    const medicineName = String(input.medicineName || '').trim();
     const quantity = Number(input.quantity);
-    if (!medicineName) throw new ValidationError('Medicine name is required.');
     if (!Number.isFinite(quantity) || quantity < 1) {
       throw new ValidationError('Quantity must be at least 1.');
     }
 
+    // ── Resolve against the master catalogue ────────────────────────────────
+    // 1. Explicit pick from the searchable list (staff selected an option).
+    let linked: MedicineCatalogDocument | null = null;
+    if (input.catalogMedicineId) {
+      linked = await medicineCatalogRepository.queries.findById(String(input.catalogMedicineId));
+      if (!linked || !linked.isActive) {
+        throw new ValidationError('Selected medicine is no longer available in the catalogue.');
+      }
+    }
+
+    const typedName = String(input.medicineName || '').trim();
+
+    // 2. Free-typed name – silently link when the owner already stocks it.
+    if (!linked && typedName) {
+      linked = await medicineCatalogRepository.queries.findByNameExact(typedName);
+      if (linked && !linked.isActive) linked = null;
+    }
+
+    if (!linked && !typedName) {
+      throw new ValidationError('Select a medicine from the list or type its name.');
+    }
+
+    const isNewMedicine = !linked;
+
     const request = await medicineRepository.queries.create({
       requestedBy: requesterId as never,
-      medicineName,
-      strength: String(input.strength || '').trim(),
+      medicineName: linked ? linked.name : typedName,
+      strength: String(input.strength || '').trim() || linked?.strength || '',
       quantity,
       unit: input.unit || 'Strips',
       urgency: ['LOW', 'NORMAL', 'URGENT'].includes(input.urgency ?? '') ? input.urgency! : 'NORMAL',
       notes: String(input.notes || '').trim(),
       status: 'PENDING',
+      catalogMedicine: (linked?._id ?? null) as never,
+      isNewMedicine,
     });
     await request.populate('requestedBy');
     const staffName = (request.requestedBy as unknown as { name: string })?.name;
@@ -72,16 +145,156 @@ class MedicineService {
     await notificationService.push({
       type: 'MEDICINE_REQUEST',
       adminBroadcast: true,
-      title: `Stock needed: ${request.medicineName}`,
-      message: `${staffName} needs ${request.quantity} ${String(request.unit).toLowerCase()} of ${request.medicineName}${request.strength ? ` (${request.strength})` : ''}`,
-      link: '/stock',
-      meta: { medicineRequestId: String(request._id) },
+      title: isNewMedicine
+        ? `🆕 New medicine requested: ${request.medicineName}`
+        : `Stock needed: ${request.medicineName}`,
+      message: isNewMedicine
+        ? `${staffName} needs ${request.quantity} ${String(request.unit).toLowerCase()} of "${request.medicineName}" – this medicine is NOT in your catalogue yet. Add it from the Medicine Catalog.`
+        : `${staffName} needs ${request.quantity} ${String(request.unit).toLowerCase()} of ${request.medicineName}${request.strength ? ` (${request.strength})` : ''}`,
+      link: isNewMedicine ? '/medicines' : '/stock',
+      meta: { medicineRequestId: String(request._id), isNewMedicine },
     });
 
     // Branded alert email to admins (fire-and-forget).
     void mailService.sendStockRequestEmail(request).catch(() => undefined);
 
     return request;
+  }
+
+  // ── MASTER MEDICINE CATALOGUE (admin-managed) ────────────────────────────
+
+  /** Active list for staff autocomplete; admins may include deactivated rows. */
+  public listMedicines(
+    search: string | undefined,
+    includeInactive: boolean,
+    viewerIsAdmin: boolean,
+  ): Promise<MedicineCatalogDocument[]> {
+    if (viewerIsAdmin) {
+      return search
+        ? medicineCatalogRepository.queries.search(search)
+        : medicineCatalogRepository.queries.listAll(includeInactive);
+    }
+    // Staff only ever see active entries.
+    return medicineCatalogRepository.queries.search(search);
+  }
+
+  /** Admin adds a medicine to the master catalogue. */
+  public async createMedicine(
+    input: MedicineCatalogInputShape,
+    adminId: string,
+  ): Promise<MedicineCatalogDocument> {
+    const patch = this.normalizeCatalogPatch(input, true);
+
+    const duplicate = await medicineCatalogRepository.queries.findByNameExact(patch.name!);
+    if (duplicate) {
+      throw new ValidationError(`"${duplicate.name}" already exists in your medicine catalogue.`);
+    }
+
+    const doc = await medicineCatalogRepository.queries.create({
+      ...patch,
+      createdBy: adminId,
+    } as Partial<IMedicineCatalog> & { createdBy: string });
+
+    return this.attachImage(doc, input.imageBase64);
+  }
+
+  /** Admin edits a catalogue entry (image replaced only when a new one is sent). */
+  public async updateMedicine(
+    id: string,
+    input: MedicineCatalogInputShape,
+  ): Promise<MedicineCatalogDocument> {
+    const existing = await medicineCatalogRepository.queries.findById(id);
+    if (!existing) throw new ValidationError('Medicine not found.');
+
+    const patch = this.normalizeCatalogPatch(input, false);
+    if (patch.name) {
+      const duplicate = await medicineCatalogRepository.queries.findByNameExact(patch.name);
+      if (duplicate && String(duplicate._id) !== String(id)) {
+        throw new ValidationError(`"${duplicate.name}" already exists in your medicine catalogue.`);
+      }
+    }
+
+    let updated = await medicineCatalogRepository.queries.update(id, patch);
+    if (!updated) throw new ValidationError('Medicine not found.');
+
+    if (input.imageBase64) {
+      updated = await this.attachImage(updated, input.imageBase64);
+    }
+    return updated;
+  }
+
+  /** Soft delete – keeps history intact but hides it from staff search. */
+  public async removeMedicine(id: string): Promise<boolean> {
+    const existing = await medicineCatalogRepository.queries.findById(id);
+    if (!existing) throw new ValidationError('Medicine not found.');
+    await medicineCatalogRepository.deactivate(id);
+    return true;
+  }
+
+  /** Re-activate a previously removed medicine. */
+  public async restoreMedicine(id: string): Promise<MedicineCatalogDocument> {
+    const doc = await medicineCatalogRepository.queries.update(id, { isActive: true });
+    if (!doc) throw new ValidationError('Medicine not found.');
+    return doc;
+  }
+
+  // ── catalogue helpers ─────────────────────────────────────────────────────
+
+  private normalizeCatalogPatch(
+    input: MedicineCatalogInputShape,
+    isCreate: boolean,
+  ): Partial<IMedicineCatalog> {
+    const name = MedicineCatalogRepository.assertName(input.name);
+    const price = Number(input.price);
+    if ((isCreate || input.price !== undefined) && (!Number.isFinite(price) || price < 0)) {
+      throw new ValidationError('Price must be 0 or more.');
+    }
+    const purchaseRate = Number(input.purchaseRate);
+    if (
+      input.purchaseRate !== undefined &&
+      input.purchaseRate !== null &&
+      (!Number.isFinite(purchaseRate) || purchaseRate < 0)
+    ) {
+      throw new ValidationError('Purchase rate must be 0 or more.');
+    }
+    const gstRate = Number(input.gstRate);
+    if (input.gstRate !== undefined && ![0, 5, 12].includes(gstRate)) {
+      throw new ValidationError('GST rate must be 0, 5 or 12.');
+    }
+
+    const patch: Partial<IMedicineCatalog> = { name };
+    const str = (v: unknown) => String(v ?? '').trim();
+    if (input.genericName !== undefined) patch.genericName = str(input.genericName);
+    if (input.manufacturer !== undefined) patch.manufacturer = str(input.manufacturer);
+    if (input.dosageForm !== undefined) patch.dosageForm = str(input.dosageForm);
+    if (input.strength !== undefined) patch.strength = str(input.strength);
+    if (input.packSize !== undefined) patch.packSize = str(input.packSize);
+    if (input.category !== undefined) patch.category = str(input.category);
+    if (input.schedule !== undefined) patch.schedule = str(input.schedule) || 'OTC';
+    if (input.uses !== undefined) patch.uses = str(input.uses);
+    if (input.dosageTiming !== undefined) patch.dosageTiming = str(input.dosageTiming);
+    if (input.directionsForUse !== undefined) patch.directionsForUse = str(input.directionsForUse);
+    if (input.storage !== undefined) patch.storage = str(input.storage);
+    if (input.sideEffects !== undefined) patch.sideEffects = str(input.sideEffects);
+    if (Number.isFinite(price) && input.price !== undefined) patch.price = price;
+    if (Number.isFinite(purchaseRate) && input.purchaseRate !== undefined) {
+      patch.purchaseRate = purchaseRate;
+    }
+    if (input.gstRate !== undefined && [0, 5, 12].includes(gstRate)) patch.gstRate = gstRate;
+    if (typeof input.isActive === 'boolean') patch.isActive = input.isActive;
+    return patch;
+  }
+
+  /** Persist an uploaded photo under a stable per-medicine filename. */
+  private async attachImage(
+    doc: MedicineCatalogDocument,
+    imageBase64?: string | null,
+  ): Promise<MedicineCatalogDocument> {
+    if (!imageBase64) return doc;
+    const url = saveBase64MedicineImage(imageBase64, `med_${String(doc._id)}`);
+    doc.image = url;
+    await doc.save();
+    return doc;
   }
 
   /** Admin moves a request through ORDERED → SUPPLIED (or REJECTS it). */

@@ -24,6 +24,7 @@ import EventIcon from '@mui/icons-material/Event';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import LocalPharmacyIcon from '@mui/icons-material/LocalPharmacy';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
+import MedicationIcon from '@mui/icons-material/Medication';
 import { useAuth } from '../shared/auth/AuthContext';
 import { usePageAccess } from '../shared/auth/hooks';
 import {
@@ -47,6 +48,7 @@ const iconMap = {
   FactCheck: FactCheckIcon,
   LocalPharmacy: LocalPharmacyIcon,
   FolderShared: FolderSharedIcon,
+  Medication: MedicationIcon,
 };
 
 const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) => {

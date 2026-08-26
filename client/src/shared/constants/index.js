@@ -1,3 +1,48 @@
+/** Indian medicine GST slabs (HSN 3004) – mirrors server constants. */
+export const MEDICINE_GST_RATES = [0, 5, 12];
+
+/**
+ * Pharmacy-grade medicine master vocabulary – mirrors the server contract in
+ * server/src/config/constants.ts (Drugs & Cosmetics Act schedules, dosage
+ * forms & therapeutic classes used by Indian retail pharmacy software).
+ */
+export const MEDICINE_DOSAGE_FORMS = [
+  'Tablet',
+  'Capsule',
+  'Syrup',
+  'Suspension',
+  'Drops',
+  'Injection',
+  'Cream / Ointment / Gel',
+  'Inhaler',
+  'Sachet / Powder',
+  'Lozenges',
+  'Other',
+];
+
+export const MEDICINE_SCHEDULES = [
+  { value: 'OTC', label: 'OTC – No prescription needed' },
+  { value: 'H', label: 'Schedule H (Prescription required)' },
+  { value: 'H1', label: 'Schedule H1 (Prescription + register)' },
+  { value: 'X', label: 'Schedule X (Prescription retained)' },
+];
+
+export const MEDICINE_CATEGORIES = [
+  'Analgesic / Antipyretic',
+  'Antibiotic',
+  'Antacid / GI',
+  'Antiallergic',
+  'Antihypertensive',
+  'Antidiabetic',
+  'Multivitamin / Supplement',
+  'Respiratory / Cough & Cold',
+  'Skin / Dermatology',
+  'Other',
+];
+
+/** Schedule H/H1/X legally need a prescription; OTC doesn't. */
+export const isPrescriptionRequired = (schedule) => schedule && schedule !== 'OTC';
+
 export const DRAWER_WIDTH = 260;
 
 /** Mini-rail width when the sidebar is collapsed on desktop */
@@ -28,6 +73,7 @@ export const NAV_ITEMS_ADMIN = [
   { label: 'Sites', path: '/offices', icon: 'LocationOn' },
   { label: 'Holidays', path: '/holidays', icon: 'Event' },
   { label: 'Stock Requests', path: '/stock', icon: 'LocalPharmacy' },
+  { label: 'Medicine Catalog', path: '/medicines', icon: 'Medication' },
   { label: 'Documents', path: '/documents', icon: 'FolderShared' },
   { label: 'Settings', path: '/settings', icon: 'Settings' },
 ];
@@ -52,6 +98,7 @@ export const PAGE_CATALOG = [
   { key: '/offices', label: 'Sites', icon: 'LocationOn' },
   { key: '/holidays', label: 'Holidays', icon: 'Event' },
   { key: '/approvals', label: 'Approvals', icon: 'FactCheck' },
+  { key: '/medicines', label: 'Medicine Catalog', icon: 'Medication' },
   { key: '/settings', label: 'Global Settings', icon: 'Settings' },
 ];
 
@@ -66,6 +113,7 @@ export const ROUTE_TITLES = {
   '/history': 'Attendance History',
   '/leaves': 'My Leaves',
   '/stock': 'Stock Requests',
+  '/medicines': 'Medicine Catalog',
   '/documents': 'Documents',
   '/admin': 'Admin Overview',
   '/staff': 'Staff Management',

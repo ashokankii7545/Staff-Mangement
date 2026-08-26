@@ -298,6 +298,7 @@ export const REQUEST_MEDICINE = gql`
       unit
       urgency
       status
+      isNewMedicine
       createdAt
     }
   }
@@ -310,6 +311,75 @@ export const REVIEW_MEDICINE_REQUEST = gql`
       medicineName
       status
       adminFeedback
+    }
+  }
+`;
+
+// ── Master medicine catalogue (admin-managed) ────────────────────────────────
+export const CREATE_MEDICINE = gql`
+  mutation CreateMedicine($input: MedicineCatalogInput!) {
+    createMedicine(input: $input) {
+      id
+      name
+      genericName
+      manufacturer
+      dosageForm
+      strength
+      packSize
+      category
+      schedule
+      uses
+      dosageTiming
+      directionsForUse
+      storage
+      sideEffects
+      image
+      price
+      purchaseRate
+      gstRate
+      isActive
+      createdAt
+    }
+  }
+`;
+
+export const UPDATE_MEDICINE = gql`
+  mutation UpdateMedicine($id: ID!, $input: MedicineCatalogInput!) {
+    updateMedicine(id: $id, input: $input) {
+      id
+      name
+      genericName
+      manufacturer
+      dosageForm
+      strength
+      packSize
+      category
+      schedule
+      uses
+      dosageTiming
+      directionsForUse
+      storage
+      sideEffects
+      image
+      price
+      purchaseRate
+      gstRate
+      isActive
+    }
+  }
+`;
+
+export const REMOVE_MEDICINE = gql`
+  mutation RemoveMedicine($id: ID!) {
+    removeMedicine(id: $id)
+  }
+`;
+
+export const RESTORE_MEDICINE = gql`
+  mutation RestoreMedicine($id: ID!) {
+    restoreMedicine(id: $id) {
+      id
+      isActive
     }
   }
 `;

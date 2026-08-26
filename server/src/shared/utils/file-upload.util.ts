@@ -77,3 +77,51 @@ export const saveBase64Image = (base64Data: string, filename: string): string =>
 
   return `/uploads/selfies/${fullFilename}`;
 };
+
+const IMAGE_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+/**
+ * Save a base64-encoded medicine photo to disk (catalogue images):
+ * accepts ONLY image/jpeg | image/png | image/webp payloads, rejects empty /
+ * oversized (>3 MB decoded) uploads and preserves the real extension so the
+ * static server sends the correct content type.
+ * @returns Relative URL path to the saved file
+ */
+export const saveBase64MedicineImage = (base64Data: string, filename: string): string => {
+  if (typeof base64Data !== 'string' || base64Data.length < 42) {
+    throw new ValidationError('Invalid image payload.');
+  }
+
+  const uriMatch = DATA_URI_RE.exec(base64Data.slice(0, 60));
+  if (!uriMatch) throw new ValidationError('Only JPG, PNG or WebP images are allowed.');
+  const mime = uriMatch[1];
+  const b64 = base64Data.slice(uriMatch[0].length);
+  const buffer = Buffer.from(b64, 'base64');
+
+  if (!buffer.length) throw new ValidationError('Empty image payload.');
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    throw new ValidationError('Image too large – maximum allowed size is 3 MB.');
+  }
+
+  const medicinesDir = path.join(process.cwd(), env.uploadDir, 'medicines');
+  if (!fs.existsSync(medicinesDir)) {
+    fs.mkdirSync(medicinesDir, { recursive: true });
+  }
+
+  // One stable filename per medicine id – re-uploads overwrite instead of
+  // piling up orphaned files (stale extension variants are cleaned below).
+  const targetExt = IMAGE_EXT[mime];
+  for (const ext of Object.values(IMAGE_EXT)) {
+    const stalePath = path.join(medicinesDir, `${filename}.${ext}`);
+    if (ext !== targetExt && fs.existsSync(stalePath)) fs.unlinkSync(stalePath);
+  }
+
+  const fullFilename = `${filename}.${targetExt}`;
+  fs.writeFileSync(path.join(medicinesDir, fullFilename), buffer);
+
+  return `/uploads/medicines/${fullFilename}`;
+};

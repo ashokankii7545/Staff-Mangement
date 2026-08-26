@@ -13,6 +13,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
+import Avatar from '@mui/material/Avatar';
 import GenericDataGrid from '../../shared/ui/GenericDataGrid';
 import AppButton from '../../shared/ui/AppButton';
 import PageHeader from '../../shared/ui/PageHeader';
@@ -215,6 +216,25 @@ const ApprovalsPage = () => {
     { id: 'employeeId', label: 'Emp ID', width: 120, valueGetter: (row) => row?.user?.employeeId || '', render: (row) => renderEmpId(row?.user?.employeeId) },
     { id: 'name', label: 'Name', width: 160, valueGetter: (row) => row?.user?.name || '', render: (row) => row?.user?.name || '' },
     { id: 'date', label: 'Date', width: 120, render: (row) => <Typography variant="body2">{dayjs(row.date).format('DD MMM')}</Typography> },
+    {
+      id: 'photo',
+      label: 'Photo',
+      width: 70,
+      align: 'center',
+      sortable: false,
+      render: (row) => (
+        row.clockIn?.selfieUrl ? (
+          <Avatar
+            variant="rounded"
+            src={row.clockIn.selfieUrl}
+            sx={{ width: 40, height: 40, cursor: 'pointer' }}
+            onClick={() => window.open(row.clockIn.selfieUrl, '_blank')}
+          />
+        ) : (
+          <Typography variant="caption" color="text.secondary">—</Typography>
+        )
+      )
+    },
     {
       id: 'punchIn',
       label: 'In',

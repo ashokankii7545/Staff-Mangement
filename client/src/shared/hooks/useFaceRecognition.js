@@ -7,7 +7,7 @@ const MATCH_THRESHOLD = 0.55; // Euclidean distance – lower = more similar
  *  proxy (and production same-origin) serve them, Google avatars pass through */
 const resolveImageUrl = (src) => {
   if (!src) return src;
-  if (/^https?:\/\//i.test(src)) return src;
+  if (/^https?:\/\//i.test(src) || src.startsWith('data:')) return src;
   return `${window.location.origin}${src.startsWith('/') ? '' : '/'}${src}`;
 };
 

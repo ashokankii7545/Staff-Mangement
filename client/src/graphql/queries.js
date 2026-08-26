@@ -439,6 +439,7 @@ export const GET_MY_MEDICINE_REQUESTS = gql`
       notes
       status
       adminFeedback
+      isNewMedicine
       createdAt
       handledBy {
         name
@@ -459,6 +460,7 @@ export const GET_ALL_MEDICINE_REQUESTS = gql`
       notes
       status
       adminFeedback
+      isNewMedicine
       createdAt
       requestedBy {
         id
@@ -468,6 +470,37 @@ export const GET_ALL_MEDICINE_REQUESTS = gql`
       handledBy {
         name
       }
+    }
+  }
+`;
+
+/**
+ * Master medicine catalogue – powers the staff request autocomplete AND the
+ * admin catalog page. NOTE: staff-facing callers must NOT select `price`.
+ */
+export const GET_MEDICINES = gql`
+  query GetMedicines($search: String, $includeInactive: Boolean) {
+    medicines(search: $search, includeInactive: $includeInactive) {
+      id
+      name
+      genericName
+      manufacturer
+      dosageForm
+      strength
+      packSize
+      category
+      schedule
+      uses
+      dosageTiming
+      directionsForUse
+      storage
+      sideEffects
+      image
+      price
+      purchaseRate
+      gstRate
+      isActive
+      createdAt
     }
   }
 `;

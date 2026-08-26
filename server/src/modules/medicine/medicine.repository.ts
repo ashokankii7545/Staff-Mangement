@@ -30,7 +30,8 @@ export class MedicineRepository extends BaseRepository<IMedicineRequest> {
           .sort({ createdAt: -1 })
           .limit(200)
           .populate('requestedBy')
-          .populate('handledBy') as Promise<MedicineRequestDocument[]>,
+          .populate('handledBy')
+          .populate('catalogMedicine', 'name strength image') as Promise<MedicineRequestDocument[]>,
       ),
 
     listAll: (status?: string): Promise<MedicineRequestDocument[]> =>
@@ -41,7 +42,8 @@ export class MedicineRepository extends BaseRepository<IMedicineRequest> {
           .sort({ createdAt: -1 })
           .limit(300)
           .populate('requestedBy')
-          .populate('handledBy') as Promise<MedicineRequestDocument[]>;
+          .populate('handledBy')
+          .populate('catalogMedicine', 'name strength image') as Promise<MedicineRequestDocument[]>;
       }),
 
     findByIdPopulatedRequestedBy: (id: string): Promise<MedicineRequestDocument | null> =>

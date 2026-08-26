@@ -23,6 +23,20 @@ export const medicineResolvers = {
       requireAdmin(ctx.user);
       return medicineService.listAll(args.status);
     },
+
+    /** Master catalogue search – staff get active-only, admins can see all. */
+    medicines: async (
+      _parent: unknown,
+      args: { search?: string; includeInactive?: boolean },
+      ctx: ContextValue,
+    ) => {
+      const user = requireAuth(ctx.user);
+      const isAdmin = user.role === 'ADMIN';
+      if (!isAdmin && args.includeInactive) {
+        throw new ValidationError('Only admins can view deactivated medicines.');
+      }
+      return medicineService.listMedicines(args.search, !!args.includeInactive, isAdmin);
+    },
   },
 
   Mutation: {
@@ -46,6 +60,46 @@ export const medicineResolvers = {
       return medicineService.review(args.id, args.status, args.adminFeedback, {
         id: String(handler._id),
       });
+    },
+
+    /** Admin adds a medicine to the master catalogue */
+    createMedicine: async (
+      _parent: unknown,
+      args: { input: Parameters<typeof medicineService.createMedicine>[0] },
+      ctx: ContextValue,
+    ) => {
+      const admin = requireAdmin(ctx.user);
+      return medicineService.createMedicine(args.input, String(admin._id));
+    },
+
+    /** Admin edits a catalogue entry */
+    updateMedicine: async (
+      _parent: unknown,
+      args: { id: string; input: Parameters<typeof medicineService.updateMedicine>[1] },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return medicineService.updateMedicine(args.id, args.input);
+    },
+
+    /** Admin soft-deletes a catalogue entry (hidden from staff search) */
+    removeMedicine: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return medicineService.removeMedicine(args.id);
+    },
+
+    /** Admin re-activates a previously removed medicine */
+    restoreMedicine: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return medicineService.restoreMedicine(args.id);
     },
   },
 };
