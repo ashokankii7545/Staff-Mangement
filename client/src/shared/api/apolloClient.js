@@ -9,8 +9,8 @@ import createUploadLink from 'apollo-upload-client/createUploadLink.mjs';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../lib/logger';
 
-const HTTP_URI = 'http://localhost:8080/graphql';
-const WS_URI = 'ws://localhost:8080/graphql';
+const HTTP_URI = import.meta.env.VITE_GRAPHQL_HTTP_URI || 'http://localhost:8080/graphql';
+const WS_URI = import.meta.env.VITE_GRAPHQL_WS_URI || 'ws://localhost:8080/graphql';
 
 // 1. DEPENDENCY INJECTION (Local Storage mapping)
 export const authProvider = {
