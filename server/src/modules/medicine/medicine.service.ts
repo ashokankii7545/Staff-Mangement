@@ -162,6 +162,7 @@ class MedicineService {
               ...(adminFeedback ? [`<strong>Note From Owner:</strong> ${adminFeedback}`] : []),
             ],
             buttonText: 'View Stock Requests',
+            buttonPath: '/stock',
           },
         )
         .catch(() => undefined);

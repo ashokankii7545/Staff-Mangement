@@ -99,18 +99,6 @@ export class AttendanceRepository extends BaseRepository<IAttendance> {
           .sort({ createdAt: -1 })
           .limit(limit) as Promise<AttendanceDocument[]>,
       ),
-
-    /** Regularization approval – upsert-style clock record for a past day. */
-    findOrCreatePunch: async (
-      userId: string,
-      date: string,
-      type: string,
-      build: () => Partial<IAttendance>,
-    ): Promise<AttendanceDocument> => {
-      const existing = await this.queries.findByUserDateType(userId, date, type);
-      if (existing) return existing;
-      return this.queries.create({ ...build(), user: userId as unknown as IAttendance['user'], date, type: type as IAttendance['type'] });
-    },
   };
 }
 

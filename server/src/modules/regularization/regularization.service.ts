@@ -155,7 +155,7 @@ class RegularizationService {
       const checkOutDateTime = dayjs(`${date} ${reg.checkOutTime}`).toDate();
       const userId = String((reg.user as unknown as { _id: unknown })._id);
 
-      const buildPunch = () => ({
+      const buildPunch = (backdatedCreatedAt: Date) => ({
         selfieUrl: '/uploads/regularized.png',
         location: {
           latitude: 28.6139,
@@ -168,13 +168,15 @@ class RegularizationService {
         },
         approvalStatus: 'APPROVED' as const,
         adminComments: adminFeedback || 'Regularized by Admin',
+        // Punch shows at the REQUESTED time, not when admin approved it.
+        createdAt: backdatedCreatedAt,
       });
 
       // 1. Clock In record
       let clockIn = await attendanceRepository.queries.findByUserDateType(userId, date, 'CLOCK_IN');
       if (!clockIn) {
         clockIn = await attendanceRepository.queries.create({
-          ...buildPunch(),
+          ...buildPunch(checkInDateTime),
           user: userId as never,
           date,
           type: 'CLOCK_IN',
@@ -190,7 +192,7 @@ class RegularizationService {
       let clockOut = await attendanceRepository.queries.findByUserDateType(userId, date, 'CLOCK_OUT');
       if (!clockOut) {
         clockOut = await attendanceRepository.queries.create({
-          ...buildPunch(),
+          ...buildPunch(checkOutDateTime),
           user: userId as never,
           date,
           type: 'CLOCK_OUT',
