@@ -50,8 +50,8 @@ class DocumentService {
           : 'OTHER',
       fileUrl,
     });
-    await doc.populate('uploadedBy');
-    const populated = doc as StaffDocumentModelDoc & { uploadedBy: { name: string } };
+    const populated = ((await documentRepository.queries.findByIdPopulatedUploadedBy(String(doc._id))) ??
+      doc) as StaffDocumentModelDoc & { uploadedBy: { name: string } };
 
     await notificationService.notifyAdmins({
       type: 'DOCUMENT_UPLOADED',
@@ -91,12 +91,12 @@ class DocumentService {
     const doc = await documentRepository.queries.findByIdPopulatedUploadedBy(id);
     if (!doc) throw new ValidationError('Document not found.');
 
-    doc.status = status as StaffDocumentModelDoc['status'];
-    doc.adminFeedback = adminFeedback || '';
-    doc.reviewedBy = reviewer.id as never;
-    await doc.save();
-    await doc.populate('reviewedBy');
-    const populated = doc as StaffDocumentModelDoc;
+    const populated =
+      (await documentRepository.queries.updateById(String(doc._id), {
+        status: status as StaffDocumentModelDoc['status'],
+        adminFeedback: adminFeedback || '',
+        reviewedBy: reviewer.id,
+      })) ?? doc;
 
     // Close the admin's "New document uploaded" notification.
     await notificationRepository.queries.closeMetaNotifications(

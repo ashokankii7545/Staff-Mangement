@@ -17,7 +17,12 @@ import dotenv from 'dotenv';
 export interface AppEnv {
   readonly nodeEnv: 'development' | 'production' | 'test';
   readonly port: number;
-  readonly mongoUri: string;
+  /** Supabase Postgres connection string (postgres.js / Drizzle). */
+  readonly databaseUrl: string;
+  /** 'no-verify' relaxes TLS cert verification (Supabase pooled endpoints). */
+  readonly databaseSsl: string | null;
+  /** Max connections in the postgres.js pool. */
+  readonly databasePoolMax: number;
   readonly jwtSecret: string;
   readonly jwtExpiresIn: string;
   /** null → allow every origin (dev). Array → strict allow-list (prod). */
@@ -27,6 +32,8 @@ export interface AppEnv {
   readonly uploadDir: string;
   readonly googleClientId: string;
   readonly vpnApiKey: string;
+  /** Optional external face-recognition service URL. Empty → feature off. */
+  readonly faceServiceUrl: string;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
   readonly smtp: {
     readonly host: string | null;
@@ -45,7 +52,7 @@ export interface AppEnv {
   };
 }
 
-const REQUIRED_VARS = ['MONGO_URI', 'JWT_SECRET'] as const;
+const REQUIRED_VARS = ['DATABASE_URL', 'JWT_SECRET'] as const;
 
 const parseLogLevel = (raw: string | undefined): AppEnv['logLevel'] => {
   const value = (raw ?? 'info').toLowerCase();
@@ -92,7 +99,9 @@ class EnvConfig {
     this.values = Object.freeze({
       nodeEnv,
       port: parseInt(process.env.PORT ?? '8080', 10),
-      mongoUri: process.env.MONGO_URI!,
+      databaseUrl: process.env.DATABASE_URL!,
+      databaseSsl: process.env.DATABASE_SSL?.trim() || null,
+      databasePoolMax: parseInt(process.env.DATABASE_POOL_MAX ?? '10', 10),
       jwtSecret: process.env.JWT_SECRET!,
       jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
       corsOrigins: corsRaw ? corsRaw.split(',').map((o) => o.trim()).filter(Boolean) : null,
@@ -100,6 +109,7 @@ class EnvConfig {
       uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
       googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
       vpnApiKey: process.env.VPNAPI_KEY ?? '',
+      faceServiceUrl: process.env.FACE_SERVICE_URL?.trim() || '',
       logLevel: parseLogLevel(process.env.LOG_LEVEL),
       smtp: Object.freeze({
         host: process.env.SMTP_HOST?.trim() || null,

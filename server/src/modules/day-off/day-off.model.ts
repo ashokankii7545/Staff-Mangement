@@ -1,33 +1,18 @@
-import mongoose, { Schema, type Model } from 'mongoose';
+import type { WithId } from '../../shared/repository/base-repository.js';
+import type { ExemptionRow } from '../../db/schema/day-off.schema.js';
 
 /**
- * Day-off exemption – admin grants a specific staff member a paid/free day.
- * Exempted days are excluded from "absent" counts and shown as EXEMPT status.
+ * Day-off exemption types – backed by Postgres/Drizzle.
+ * When populated, `user`/`createdBy` carry the related user object instead of
+ * a uuid string (hence the loose typing downstream).
  */
 export interface IExemption {
-  user: mongoose.Types.ObjectId;
-  /** `YYYY-MM-DD` */
+  user: string;
   date: string;
   reason: string;
-  createdBy?: mongoose.Types.ObjectId | null;
+  createdBy?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export type ExemptionDocument = mongoose.HydratedDocument<IExemption>;
-
-const exemptionSchema = new Schema<IExemption>(
-  {
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    date: { type: String, required: true }, // YYYY-MM-DD
-    reason: { type: String, default: '' },
-    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
-  },
-  { timestamps: true },
-);
-
-exemptionSchema.index({ user: 1, date: 1 }, { unique: true });
-
-export const ExemptionModel: Model<IExemption> =
-  (mongoose.models.Exemption as Model<IExemption>) ||
-  mongoose.model<IExemption>('Exemption', exemptionSchema);
+export type ExemptionDocument = WithId<ExemptionRow>;

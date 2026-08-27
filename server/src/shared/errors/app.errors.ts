@@ -85,8 +85,12 @@ export class DatabaseError extends AppError {
   public static from(error: unknown): AppError {
     if (error instanceof AppError) return error;
 
-    const anyErr = error as { code?: number; message?: string };
-    if (anyErr?.code === 11000) {
+    const anyErr = error as { code?: number | string; message?: string; cause?: { code?: number | string } };
+    // Postgres surfaces the SQLSTATE on the error itself and/or on `.cause`
+    // (drizzle wraps the driver error). 23505 = unique_violation.
+    const code = anyErr?.code ?? anyErr?.cause?.code;
+    // Mongo duplicate-key (11000) OR Postgres unique_violation (23505).
+    if (code === 11000 || code === '23505') {
       return new ConflictError('A record with these unique details already exists.');
     }
     return new DatabaseError(anyErr?.message || 'Database operation failed.', error);

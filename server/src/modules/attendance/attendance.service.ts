@@ -20,7 +20,7 @@ import { attendanceRepository } from './attendance.repository.js';
 import { settingsRepository } from '../settings/settings.repository.js';
 import { userRepository } from '../user/user.repository.js';
 import { officeRepository } from '../office/office.repository.js';
-import type { AttendanceDocument } from './attendance.model.js';
+import type { AttendanceDocument, IAttendance } from './attendance.model.js';
 import { mailService } from '../../shared/mail/mail.service.js';
 
 export interface ClockInputShape {
@@ -241,7 +241,7 @@ class AttendanceService {
     const autoApproved =
       !hasIdentityFlag && faceVerified && settings?.autoApproveAttendance !== false;
 
-    const attendance = await (async () => {
+    let attendance = await (async () => {
       try {
         return await attendanceRepository.queries.create({
           user: userId as never,
@@ -294,7 +294,7 @@ class AttendanceService {
       }
     })();
 
-    await attendance.populate('user');
+    attendance = (await attendanceRepository.queries.findByIdPopulated(String(attendance._id))) ?? attendance;
 
     if (vpnDetected || input.faceMatched === false) {
       const staffName = (attendance.user as unknown as { name?: string })?.name || 'A staff member';
@@ -534,14 +534,16 @@ class AttendanceService {
     const record = await attendanceRepository.queries.findById(args.id);
     if (!record) throw new NotFoundError('Attendance record not found');
 
-    record.approvalStatus = args.status as AttendanceDocument['approvalStatus'];
-    record.approvedBy = args.reviewer.id as never;
+    const patch: Partial<IAttendance> = {
+      approvalStatus: args.status,
+      approvedBy: args.reviewer.id,
+    };
     if (args.adminComments !== undefined && args.adminComments !== null) {
-      record.adminComments = args.adminComments;
+      patch.adminComments = args.adminComments;
     }
 
-    await record.save();
-    const populated = (await record.populate('user')) as AttendanceDocument;
+    const populated =
+      (await attendanceRepository.queries.updateById(String(record._id), patch)) ?? record;
 
     // Close the "Flagged punch needs review" notification in every admin's
     // inbox – reviewed punches must not keep showing up as unread.
@@ -589,12 +591,8 @@ class AttendanceService {
 
 /** Approved-leave counter for a single day (dashboard "on leave" tile). */
 const leaveCountForDay = async (today: string): Promise<number> => {
-  const { LeaveRequestModel } = await import('../leave/leave.model.js');
-  return LeaveRequestModel.countDocuments({
-    status: 'APPROVED',
-    startDate: { $lte: today },
-    endDate: { $gte: today },
-  });
+  const { leaveRepository } = await import('../leave/leave.repository.js');
+  return leaveRepository.queries.countApprovedOnDate(today);
 };
 
 export const attendanceService = AttendanceService.getInstance();

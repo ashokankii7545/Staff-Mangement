@@ -173,7 +173,7 @@ class LeaveService {
       );
     }
 
-    const leaveRequest = await leaveRepository.queries.create({
+    const createdLeave = await leaveRepository.queries.create({
       leaveType: input.leaveType as never,
       startDate: input.startDate as never,
       endDate: input.endDate as never,
@@ -181,7 +181,8 @@ class LeaveService {
       user: targetUserId as never,
       status: 'PENDING',
     });
-    await leaveRequest.populate('user');
+    const leaveRequest =
+      (await leaveRepository.queries.findByIdPopulatedUser(String(createdLeave._id))) ?? createdLeave;
     pubsub.publish(PUBSUB_CHANNELS.LEAVE_REQUEST_ADDED, { leaveRequestAdded: leaveRequest });
 
     // Notify every admin so the request surfaces in their inbox instantly.
@@ -233,28 +234,28 @@ class LeaveService {
       }
     }
 
-    leaveRequest.status = 'CANCELLED';
-    await leaveRequest.save();
-    await leaveRequest.populate('user');
-    pubsub.publish(PUBSUB_CHANNELS.LEAVE_REQUEST_UPDATED, { leaveRequestUpdated: leaveRequest });
+    const updated =
+      (await leaveRepository.queries.updateById(String(leaveRequest._id), { status: 'CANCELLED' })) ??
+      leaveRequest;
+    pubsub.publish(PUBSUB_CHANNELS.LEAVE_REQUEST_UPDATED, { leaveRequestUpdated: updated });
 
     // Admin is ALWAYS informed – the cancellation lands in their inbox.
     await notificationService.notifyAdmins({
       type: 'LEAVE_REQUEST',
       title: wasApproved ? 'Approved leave cancelled' : 'Leave request withdrawn',
-      message: `${(leaveRequest.user as unknown as { name: string }).name} cancelled their ${leaveRequest.leaveType} leave (${d(leaveRequest.startDate).format('MMM D')} – ${d(leaveRequest.endDate).format('MMM D')})${wasApproved ? ' – balance refunded.' : '.'}`,
+      message: `${(updated.user as unknown as { name: string }).name} cancelled their ${updated.leaveType} leave (${d(updated.startDate).format('MMM D')} – ${d(updated.endDate).format('MMM D')})${wasApproved ? ' – balance refunded.' : '.'}`,
       link: '/history',
-      meta: { leaveRequestId: String(leaveRequest._id) },
+      meta: { leaveRequestId: String(updated._id) },
     });
 
     // Close the original "New leave request" admin notifications.
     await notificationRepository.queries.closeMetaNotifications(
       'LEAVE_REQUEST',
       'leaveRequestId',
-      String(leaveRequest._id),
+      String(updated._id),
     );
 
-    return leaveRequest;
+    return updated;
   }
 
   public async review(
@@ -269,10 +270,6 @@ class LeaveService {
     if (leaveRequest.status !== 'PENDING') {
       throw new ValidationError('Leave request is already processed');
     }
-
-    leaveRequest.status = status as LeaveRequestDocument['status'];
-    leaveRequest.adminFeedback = adminFeedback ?? undefined;
-    leaveRequest.approvedBy = approver.id as never;
 
     // Deduct balance if approved. A bookkeeping failure must NEVER block the
     // admin's decision – log it loudly and still apply the approval.
@@ -298,15 +295,19 @@ class LeaveService {
       }
     }
 
-    await leaveRequest.save();
-    await leaveRequest.populate('approvedBy');
-    pubsub.publish(PUBSUB_CHANNELS.LEAVE_REQUEST_UPDATED, { leaveRequestUpdated: leaveRequest });
+    const updatedLeave =
+      (await leaveRepository.queries.updateById(String(leaveRequest._id), {
+        status: status as LeaveRequestDocument['status'],
+        adminFeedback: adminFeedback ?? undefined,
+        approvedBy: approver.id,
+      })) ?? leaveRequest;
+    pubsub.publish(PUBSUB_CHANNELS.LEAVE_REQUEST_UPDATED, { leaveRequestUpdated: updatedLeave });
 
     // Close the original request notification in EVERY admin's inbox.
     await notificationRepository.queries.closeMetaNotifications(
       'LEAVE_REQUEST',
       'leaveRequestId',
-      String(leaveRequest._id),
+      String(updatedLeave._id),
     );
 
     // Never ping / email the reviewer about their OWN request (self-review).
@@ -331,12 +332,12 @@ class LeaveService {
           startDate: d(leaveRequest.startDate).format('MMM D, YYYY'),
           endDate: d(leaveRequest.endDate).format('MMM D, YYYY'),
           feedback: adminFeedback,
-          reviewerName: (leaveRequest.approvedBy as unknown as { name?: string } | null)?.name,
+          reviewerName: (updatedLeave.approvedBy as unknown as { name?: string } | null)?.name,
         })
         .catch((e) => logger.error(e));
     }
 
-    return leaveRequest;
+    return updatedLeave;
   }
 }
 

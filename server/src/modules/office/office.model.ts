@@ -1,5 +1,11 @@
-import mongoose, { Schema, type Model } from 'mongoose';
+import type { WithId } from '../../shared/repository/base-repository.js';
+import type { OfficeRow } from '../../db/schema/office.schema.js';
 
+/**
+ * Office types – now backed by Postgres/Drizzle (not Mongoose).
+ * `IOffice` is the plain column shape; `OfficeDocument` adds the `_id`
+ * compatibility alias so existing service/resolver/loader code is unchanged.
+ */
 export interface IOffice {
   name: string;
   address: string;
@@ -11,19 +17,5 @@ export interface IOffice {
   updatedAt?: Date;
 }
 
-export type OfficeDocument = mongoose.HydratedDocument<IOffice>;
-
-const officeSchema = new Schema<IOffice>(
-  {
-    name: { type: String, required: true, trim: true },
-    address: { type: String, trim: true, default: '' },
-    latitude: { type: Number, required: true },
-    longitude: { type: Number, required: true },
-    geofenceRadius: { type: Number, default: 200 }, // meters
-    isActive: { type: Boolean, default: true },
-  },
-  { timestamps: true },
-);
-
-export const OfficeModel: Model<IOffice> =
-  (mongoose.models.Office as Model<IOffice>) || mongoose.model<IOffice>('Office', officeSchema);
+/** A hydrated office row as returned by the repository (id + _id + columns). */
+export type OfficeDocument = WithId<OfficeRow>;

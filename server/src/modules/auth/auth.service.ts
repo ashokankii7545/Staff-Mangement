@@ -1,5 +1,4 @@
-import { CounterModel } from '../user/counter.model.js';
-import mongoose from 'mongoose';
+import { nextSequence } from '../user/counter.model.js';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env.js';
@@ -17,9 +16,12 @@ import { mailService } from '../../shared/mail/mail.service.js';
 import { notificationService } from '../notification/notification.service.js';
 import { userRepository } from '../user/user.repository.js';
 import { signAuthToken } from '../../shared/utils/jwt.util.js';
+import { verifyPassword } from '../../shared/utils/password.util.js';
+import { getFaceEmbeddingFromBase64 } from '../../shared/utils/face.util.js';
 import { leaveService } from '../leave/leave.service.js';
 import { notificationRepository } from '../notification/notification.repository.js';
-import type { IUserDocument } from '../user/user.model.js';
+import type { IUser, IUserDocument } from '../user/user.model.js';
+import type { Role } from '../../config/constants.js';
 
 export interface AuthPayload {
   token: string;
@@ -176,14 +178,8 @@ class AuthService {
   ): Promise<string> {
     const prefix = this.ROLE_PREFIXES[role] ?? this.ROLE_PREFIXES.STAFF;
     
-    // Auto-increment the global employee sequence
-    const counter = await CounterModel.findOneAndUpdate(
-      { _id: 'employeeId' },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
-    );
-    
-    const seqValue = counter?.seq || 1;
+    // Auto-increment the global employee sequence (atomic upsert in Postgres).
+    const seqValue = await nextSequence('employeeId');
     // Starting at 1000: seq 1 -> 1001
     const numericPart = 1000 + seqValue;
     
@@ -192,19 +188,20 @@ class AuthService {
 
   /**
    * Mint an Employee ID and create the user. On the rare concurrent race
-   * (unique-index error 11000), regenerate once and retry instead of failing.
+   * (unique-constraint violation → ConflictError), regenerate once and retry
+   * instead of failing.
    */
   private async persistWithUniqueEmployeeId(args: {
     role: string;
     identity: { name?: string; email?: string };
-    buildUser: (employeeId: string) => Partial<IUserDocument> | Promise<Partial<IUserDocument>>;
+    buildUser: (employeeId: string) => Partial<IUser> | Promise<Partial<IUser>>;
   }): Promise<IUserDocument> {
     let employeeId = await this.generateEmployeeId(args.role, args.identity);
     try {
       return await userRepository.queries.create(await args.buildUser(employeeId));
     } catch (error) {
-      const code = (error as { code?: number }).code;
-      if (code !== 11000) throw error; // duplicate key on some other field
+      const code = (error as { extensions?: { code?: string } }).extensions?.code;
+      if (code !== 'CONFLICT') throw error; // duplicate on some other field
       employeeId = await this.generateEmployeeId(args.role, args.identity);
       return userRepository.queries.create(await args.buildUser(employeeId));
     }
@@ -231,14 +228,14 @@ class AuthService {
       throw new AuthenticationError('Invalid Employee ID or password.');
     }
 
-    const ok = await user.comparePassword(args.password);
+    const ok = await verifyPassword(user, args.password);
     if (!ok) {
       throw new AuthenticationError('Invalid Employee ID or password.');
     }
 
     this.assertCanLogin(user);
     return {
-      token: signAuthToken({ id: String(user._id), role: user.role }),
+      token: signAuthToken({ id: String(user._id), role: user.role as Role }),
       user,
     };
   }
@@ -269,14 +266,14 @@ class AuthService {
     }
     if (!user.googleId) {
       // Email matched an existing account – safe to link, Google verified it.
-      user.googleId = profile.sub;
-      if (!user.avatar && profile.picture) user.avatar = profile.picture;
-      await user.save();
+      const patch: Partial<IUser> = { googleId: profile.sub };
+      if (!user.avatar && profile.picture) patch.avatar = profile.picture;
+      user = (await userRepository.queries.updateById(String(user._id), patch)) ?? user;
     }
 
     this.assertCanLogin(user);
     return {
-      token: signAuthToken({ id: String(user._id), role: user.role }),
+      token: signAuthToken({ id: String(user._id), role: user.role as Role }),
       user,
     };
   }
@@ -388,10 +385,11 @@ class AuthService {
       throw new ValidationError('Verification code has expired. Please request a new one.');
     }
 
-    user.emailVerified = true;
-    user.verificationOtp = null;
-    user.verificationOtpExpiry = null;
-    await user.save();
+    await userRepository.queries.updateById(String(user._id), {
+      emailVerified: true,
+      verificationOtp: null,
+      verificationOtpExpiry: null,
+    });
 
     // Now notify admins since the email is verified
     await notificationService.notifyAdmins({
@@ -422,9 +420,10 @@ class AuthService {
     if (user.emailVerified) throw new ValidationError('Email is already verified.');
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationOtp = otp;
-    user.verificationOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    await user.save();
+    await userRepository.queries.updateById(String(user._id), {
+      verificationOtp: otp,
+      verificationOtpExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+    });
 
     void mailService.sendSignupOTPEmail(cleanEmail, user.name, otp).catch(e => logger.error(e));
 
@@ -447,19 +446,21 @@ class AuthService {
       throw new ForbiddenError('Admin accounts cannot be reviewed here.');
     }
 
-    target.approvalStatus = status as IUserDocument['approvalStatus'];
-    target.approvalNote = note || '';
+    const patch: Partial<IUser> = {
+      approvalStatus: status as IUser['approvalStatus'],
+      approvalNote: note || '',
+    };
     if (status === 'APPROVED') {
-      if (officeId) target.assignedOffice = officeId as never;
-      target.isActive = true;
-      void mailService.sendUserApprovalEmail(target);
+      if (officeId) patch.assignedOffice = officeId;
+      patch.isActive = true;
     }
     if (status === 'REJECTED') {
-      target.isActive = false;
-      void mailService.sendSignupRejectionEmail(target, note);
+      patch.isActive = false;
     }
 
-    await target.save();
+    const updatedTarget = (await userRepository.queries.updateById(String(target._id), patch)) ?? target;
+    if (status === 'APPROVED') void mailService.sendUserApprovalEmail(updatedTarget);
+    if (status === 'REJECTED') void mailService.sendSignupRejectionEmail(updatedTarget, note);
 
     // Delete the signup request notifications for all admins
     await notificationRepository.queries.deleteSignupRequests(String(target._id));
@@ -494,11 +495,10 @@ class AuthService {
     const user = await userRepository.queries.findById(args.userId);
     if (!user) throw new ValidationError('Account not found.');
     if (user.password) {
-      const ok = await user.comparePassword(String(args.currentPassword || ''));
+      const ok = await verifyPassword(user, String(args.currentPassword || ''));
       if (!ok) throw new ValidationError('Current password is incorrect.');
     }
-    user.password = String(args.newPassword);
-    await user.save();
+    await userRepository.queries.updateById(String(user._id), { password: String(args.newPassword) });
     return true;
   }
 

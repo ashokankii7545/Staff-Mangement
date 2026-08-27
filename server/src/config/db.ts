@@ -1,10 +1,11 @@
-import mongoose from 'mongoose';
-import { env } from './env.js';
+import { sql } from './drizzle.js';
 import { logger } from '../shared/logger/logger.js';
 
 /**
- * Database – SINGLETON wrapper around the Mongoose connection.
- * The whole app shares exactly one connection; `connect()` is idempotent.
+ * Database – SINGLETON lifecycle wrapper around the Postgres (postgres.js)
+ * connection used by Drizzle. Keeps the same public surface the app already
+ * relies on (`connect()` at boot, `disconnect()` on graceful shutdown) so the
+ * server bootstrap is unchanged after the MongoDB → Supabase migration.
  */
 class Database {
   private static instance: Database | null = null;
@@ -22,37 +23,27 @@ class Database {
   }
 
   public get isConnected(): boolean {
-    return this.connected && mongoose.connection.readyState === 1;
+    return this.connected;
   }
 
+  /** Verify connectivity once at boot (postgres.js connects lazily/pools). */
   public async connect(): Promise<void> {
-    if (this.isConnected) return;
-
-    mongoose.set('strictQuery', true);
-
+    if (this.connected) return;
     try {
-      const conn = await mongoose.connect(env.mongoUri);
+      await sql`SELECT 1`;
       this.connected = true;
-      logger.info(`MongoDB connected → ${conn.connection.host}`);
-
-      mongoose.connection.on('error', (err) => {
-        logger.error('MongoDB runtime error', err);
-      });
-      mongoose.connection.on('disconnected', () => {
-        logger.warn('MongoDB disconnected');
-        this.connected = false;
-      });
+      logger.info('Postgres (Supabase) connected');
     } catch (error) {
-      logger.error('MongoDB initial connection failed', error as Error);
+      logger.error('Postgres initial connection failed', error as Error);
       process.exit(1);
     }
   }
 
   public async disconnect(): Promise<void> {
     if (!this.connected) return;
-    await mongoose.disconnect();
+    await sql.end({ timeout: 5 });
     this.connected = false;
-    logger.info('MongoDB connection closed');
+    logger.info('Postgres connection closed');
   }
 }
 

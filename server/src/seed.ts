@@ -1,21 +1,17 @@
-import mongoose from 'mongoose';
-import { database } from './config/db.js';
-import { logger } from './shared/logger/logger.js';
-import { UserModel } from './modules/user/user.model.js';
-import { SettingsModel } from './modules/settings/settings.model.js';
+import { sql } from './config/drizzle.js';
+import { userRepository } from './modules/user/user.repository.js';
+import { settingsRepository } from './modules/settings/settings.repository.js';
 
 const seed = async (): Promise<void> => {
-  await database.connect();
-
   console.log('\n🌱 Seeding database…\n');
 
-  // Create admin user with your email
-  const existingAdmin = await UserModel.findOne({ employeeId: 'ADMIN001' });
+  // Create admin user (idempotent by employeeId).
+  const existingAdmin = await userRepository.queries.findByEmployeeId('ADMIN001');
   if (!existingAdmin) {
-    await UserModel.create({
+    await userRepository.queries.create({
       employeeId: 'ADMIN001',
       name: 'Manish',
-      email: 'tgayn065@gmail.com',
+      email: 'tgyan065@gmail.com',
       password: 'admin123',
       role: 'ADMIN',
       department: 'Management',
@@ -24,16 +20,17 @@ const seed = async (): Promise<void> => {
     console.log('✅ Admin created:');
     console.log('   Employee ID: ADMIN001');
     console.log('   Password: admin123');
-    console.log('   Email: tgayn065@gmail.com');
+    console.log('   Email: tgyan065@gmail.com');
     console.log('   (Can also login with Google using this email)');
   } else {
     console.log('ℹ️  Admin already exists: ADMIN001');
   }
 
-  // Create default settings
-  const existingSettings = await SettingsModel.findOne();
+  // Create default settings (single-row, lazily created).
+  const existingSettings = await settingsRepository.queries.findFirst();
   if (!existingSettings) {
-    await SettingsModel.create({
+    const created = await settingsRepository.queries.getOrCreate();
+    await settingsRepository.queries.updateById(String(created._id), {
       officeLatitude: 28.6139,
       officeLongitude: 77.209,
       officeName: 'Head Office - Delhi',
@@ -48,7 +45,7 @@ const seed = async (): Promise<void> => {
   }
 
   console.log('\n🎉 Seeding complete!\n');
-  await mongoose.disconnect();
+  await sql.end({ timeout: 5 });
   process.exit(0);
 };
 
