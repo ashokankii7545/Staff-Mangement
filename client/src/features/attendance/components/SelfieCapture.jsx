@@ -88,6 +88,19 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
     };
   }, [capturedImage]);
 
+  // SAFEGUARD: if the tiny-face-detector or the camera never becomes ready the
+  // faceStatus can sit on 'INIT' forever, which permanently disables the punch
+  // button (a real edge case when /models is slow/blocked or the camera emits no
+  // video while the browser is waiting for permission). After a short grace
+  // period we fall back to 'UNAVAILABLE' (non-blocking) so a punch can ALWAYS be
+  // submitted instead of silently never firing.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFaceStatus((prev) => (prev === 'INIT' ? 'UNAVAILABLE' : prev));
+    }, 6000); // 6s grace – plenty for models + camera warm-up
+    return () => clearTimeout(t);
+  }, [capturedImage]);
+
   // Face gate – when required, CAPTURE stays disabled until the live detector
   // confirms a properly centered face. "UNAVAILABLE" (model failed to load)
   // never blocks anyone; INIT stays locked only while models are resolving.

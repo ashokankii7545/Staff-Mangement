@@ -137,7 +137,7 @@ const LoginPage = () => {
 
   // ── Public Sign Up ──────────────────────────────────────────
   const [signupMutation, { loading: signupLoading }] = useAppMutation(SIGNUP, {
-    onCompleted: (data) => {
+    onCompleted: () => {
       setVerifyEmailFlow(true);
     },
     onError: (err) => {
@@ -439,7 +439,7 @@ const LoginPage = () => {
                   )}
                 </Box>
                   <GenericDialog open={cameraOpen} onClose={() => setCameraOpen(false)} title="Capture Baseline Photo" maxWidth="xs">
-                    <SelfieCapture onCapture={(pic) => { setBaselinePic(pic); setCameraOpen(false); }} isPunching={false} buttonText="Capture & Save" requireCenteredFace />
+                    <SelfieCapture onCapture={(pic) => { setBaselinePic(pic); setCameraOpen(false); }} isPunching={false} buttonText="Capture & Save" requireCenteredFace allowUpload={false} />
                   </GenericDialog>
                   <GenericFormEngine
                     schema={signupSchema}
