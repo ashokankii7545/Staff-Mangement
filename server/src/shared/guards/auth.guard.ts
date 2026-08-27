@@ -8,6 +8,9 @@ import type { IUserDocument } from '../../modules/user/user.model.js';
  * Keep them tiny & composable; business rules belong in services.
  */
 
+/** Postgres user ids are uuids; anything else is a stale/invalid token id. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Resolve a user from a raw Authorization header (null when anonymous). */
 export const getAuthUser = async (
   headerValue?: string | null,
@@ -16,7 +19,11 @@ export const getAuthUser = async (
   if (!token) return null;
   try {
     const decoded = verifyAuthToken(token);
-    const user = await userRepository.queries.findById(decoded.id ?? '');
+    // Tokens minted before the Postgres migration carry Mongo ObjectIds, which
+    // are not valid uuids – treat them as anonymous (forces a clean re-login)
+    // instead of firing a failing query at Postgres on every request.
+    if (!decoded.id || !UUID_RE.test(decoded.id)) return null;
+    const user = await userRepository.queries.findById(decoded.id);
     // EDGE CASE GUARD: a live token must STILL belong to an ACTIVE + APPROVED
     // account – deactivating someone (or rejecting their signup) takes effect
     // immediately instead of waiting for the 7-day token to expire.
