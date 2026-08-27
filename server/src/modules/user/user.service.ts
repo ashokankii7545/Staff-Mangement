@@ -6,6 +6,8 @@ import { notificationService } from '../notification/notification.service.js';
 import { userRepository } from './user.repository.js';
 import { dayOffRepository } from '../day-off/day-off.repository.js';
 import { officeRepository } from '../office/office.repository.js';
+import { saveBase64Image } from '../../shared/utils/file-upload.util.js';
+import { getFaceEmbeddingFromBase64 } from '../../shared/utils/face.util.js';
 import type { IUserDocument } from './user.model.js';
 
 export interface UpdateUserInputShape {
@@ -18,6 +20,7 @@ export interface UpdateUserInputShape {
   shiftStartTime?: string;
   shiftEndTime?: string;
   restrictedPages?: string[];
+  avatarBase64?: string | null;
 }
 
 /**
@@ -67,11 +70,36 @@ class UserService {
       updateData.assignedOffice = updateData.officeId;
       delete updateData.officeId;
     }
+
+    // New profile photo → persist it as the avatar and remember to re-enroll.
+    const newPhoto = typeof input.avatarBase64 === 'string' && input.avatarBase64 ? input.avatarBase64 : null;
+    delete updateData.avatarBase64;
+    if (newPhoto) {
+      updateData.avatar = await saveBase64Image(newPhoto, `staff-${id}-${Date.now()}`);
+    }
+
     const updated = await userRepository.queries.updateById(id, updateData, {
       populate: ['assignedOffice'],
     });
+
+    // Re-enroll the face embedding from the new photo (best-effort, non-blocking).
+    if (newPhoto) void this.enrollFaceFromPhoto(id, newPhoto);
+
     if (updated) void mailService.sendProfileUpdateEmail(updated).catch((e) => logger.error(e));
     return updated;
+  }
+
+  /** Compute + store the SFace embedding for a user from a base64 photo. Best-effort. */
+  private async enrollFaceFromPhoto(userId: string, imageBase64: string): Promise<void> {
+    try {
+      const embedding = await getFaceEmbeddingFromBase64(imageBase64);
+      if (embedding) {
+        await userRepository.queries.setFaceVector(userId, embedding);
+        logger.info(`Face re-enrolled for user ${userId} (${embedding.length}-d)`);
+      }
+    } catch (error) {
+      logger.error(`Face re-enrollment failed for ${userId}`, error);
+    }
   }
 
   /**

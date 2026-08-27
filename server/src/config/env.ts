@@ -34,6 +34,8 @@ export interface AppEnv {
   readonly vpnApiKey: string;
   /** Optional external face-recognition service URL. Empty → feature off. */
   readonly faceServiceUrl: string;
+  /** Optional bearer token for the face service (must match its FACE_SERVICE_TOKEN). */
+  readonly faceServiceToken: string;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
   readonly smtp: {
     readonly host: string | null;
@@ -110,6 +112,7 @@ class EnvConfig {
       googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
       vpnApiKey: process.env.VPNAPI_KEY ?? '',
       faceServiceUrl: process.env.FACE_SERVICE_URL?.trim() || '',
+      faceServiceToken: process.env.FACE_SERVICE_TOKEN?.trim() || '',
       logLevel: parseLogLevel(process.env.LOG_LEVEL),
       smtp: Object.freeze({
         host: process.env.SMTP_HOST?.trim() || null,

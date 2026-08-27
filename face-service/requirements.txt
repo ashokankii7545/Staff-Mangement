@@ -1,0 +1,9 @@
+# Face-service dependencies (CPU-only, commercial-safe licenses).
+# Note: OpenCV's DNN module runs the ONNX models directly — no onnxruntime needed.
+fastapi>=0.110,<0.116
+uvicorn[standard]>=0.29,<0.35
+python-multipart>=0.0.9
+numpy>=1.24,<2.1
+opencv-python-headless>=4.9,<4.11
+pillow>=10.0,<12.0
+requests>=2.31

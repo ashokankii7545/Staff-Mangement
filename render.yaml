@@ -1,0 +1,19 @@
+# Render Blueprint for the face-service (commercial-safe SFace/YuNet).
+# In Render: New → Blueprint → pick this repo (Blueprint Path stays "render.yaml").
+# Set FACE_SERVICE_TOKEN's value in the dashboard.
+services:
+  - type: web
+    name: staff-face-service
+    runtime: docker
+    rootDir: face-service # build context = the face-service folder
+    dockerfilePath: ./Dockerfile # relative to rootDir
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: FACE_SERVICE_TOKEN
+        sync: false # set the secret value in the Render dashboard
+      - key: FACE_MATCH_THRESHOLD
+        value: "0.40"
+      - key: LIVENESS_YAW_RANGE
+        value: "0.14"

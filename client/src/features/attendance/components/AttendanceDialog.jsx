@@ -48,8 +48,10 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
     }
   }, [open, requestLocation]);
 
-  // Fast 3-Second Punch: Snapshot + Immediate Auto Submit
-  const handleCaptureAndPunch = useCallback(async (imageSrc) => {
+  // Fast 3-Second Punch: Snapshot + Immediate Auto Submit.
+  // `livenessFrames` is the head-turn burst SelfieCapture collects; the server
+  // uses it for active liveness (browser no longer decides liveness).
+  const handleCaptureAndPunch = useCallback(async (imageSrc, livenessFrames = []) => {
     if (!imageSrc) return;
 
     setSubmitting(true);
@@ -115,6 +117,7 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
             webRTCIPs,
             faceMatched: !!verification.match,
             faceMatchScore: typeof verification.distance === 'number' ? verification.distance : null,
+            livenessFrames: Array.isArray(livenessFrames) ? livenessFrames : [],
           },
         },
       });
@@ -235,6 +238,7 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
                 isPunching={submitting} 
                 allowUpload={false}
                 requireCenteredFace={true}
+                requireLiveness={true}
               />
             )}
           </Stack>

@@ -1,0 +1,6 @@
+# Downloaded ONNX models (fetched via download_models.py / Docker build)
+models/
+__pycache__/
+*.pyc
+.venv/
+venv/
