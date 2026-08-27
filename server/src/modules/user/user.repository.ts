@@ -44,6 +44,22 @@ export class UserRepository extends BaseRepository<typeof users> {
     return data;
   }
 
+  /**
+   * Normalize array-typed columns so the postgres.js driver never receives a
+   * non-array (e.g. a client sending `restrictedPages: {}` instead of `[]`,
+   * which would throw "value.map is not a function"). Applied before writes.
+   */
+  private normalizeArrays(data: Record<string, unknown>): Record<string, unknown> {
+    const out = { ...data };
+    for (const key of ['restrictedPages', 'faceEmbedding'] as const) {
+      if (key in out && !Array.isArray(out[key])) {
+        // Treat null/undefined/empty-object as an empty array; keep nothing else.
+        out[key] = [];
+      }
+    }
+    return out;
+  }
+
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
   public readonly queries = {
     findById: (id: string, _options: FindUserOptions = {}): Promise<IUserDocument | null> =>
@@ -131,7 +147,7 @@ export class UserRepository extends BaseRepository<typeof users> {
 
     create: (data: Partial<IUser>): Promise<IUserDocument> =>
       this.exec('create', async () => {
-        const values = await this.withHashedPassword(data);
+        const values = this.normalizeArrays(await this.withHashedPassword(data));
         return this.qInsert(values) as Promise<IUserDocument>;
       }),
 
@@ -145,7 +161,7 @@ export class UserRepository extends BaseRepository<typeof users> {
       _options: FindUserOptions = {},
     ): Promise<IUserDocument | null> =>
       this.exec('updateById', async () => {
-        const values = await this.withHashedPassword(update as { password?: string | null });
+        const values = this.normalizeArrays(await this.withHashedPassword(update as { password?: string | null }));
         return this.qUpdateById(id, values) as Promise<IUserDocument | null>;
       }),
 
