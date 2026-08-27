@@ -28,6 +28,11 @@ const appRoutes = [
     load: () => import('./features/auth/LoginPage'),
   },
   {
+    path: '/reset-password',
+    meta: { layout: AuthLayout },
+    load: () => import('./features/auth/ResetPasswordPage'),
+  },
+  {
     path: '/',
     meta: {
       requiresAuth: true,

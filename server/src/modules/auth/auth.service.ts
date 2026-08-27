@@ -13,6 +13,7 @@ import {
 } from '../../shared/errors/app.errors.js';
 import { checkRateLimit } from '../../shared/security/rate-limiter.util.js';
 import { saveBase64Image } from '../../shared/utils/file-upload.util.js';
+import { hashPassword } from '../../shared/utils/password.util.js';
 import { getFaceEmbeddingFromBase64 } from '../../shared/utils/face.util.js';
 import { mailService } from '../../shared/mail/mail.service.js';
 import { notificationService } from '../notification/notification.service.js';
@@ -512,8 +513,33 @@ class AuthService {
   /** Always-allowed security mail with a single-use reset token link. */
   public async requestPasswordReset(email: string): Promise<boolean> {
     logger.info(`Password reset requested for email: ${email}`);
+    const user = await userRepository.queries.findByEmail(email);
+    if (!user) return true; // prevent enumeration
+    
     const resetToken = crypto.randomUUID();
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hr
+    await user.save();
+
     await mailService.sendPasswordResetEmail(email, resetToken);
+    return true;
+  }
+
+  public async resetPasswordWithToken(token: string, newPassword: string): Promise<boolean> {
+    const { UserModel } = await import('../user/user.model.js');
+    const user = await UserModel.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: new Date() }
+    });
+    
+    if (!user) throw new Error('Invalid or expired password reset token.');
+    
+    user.password = await hashPassword(newPassword);
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+    
+    logger.info(`Password successfully reset for user: ${user.email}`);
     return true;
   }
 }

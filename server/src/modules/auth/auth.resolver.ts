@@ -23,6 +23,9 @@ export const authResolvers = {
     requestPasswordReset: async (_parent: unknown, args: { email: string }) =>
       authService.requestPasswordReset(args.email),
 
+    resetPasswordWithToken: async (_parent: unknown, args: { token: string; newPassword: string }) =>
+      authService.resetPasswordWithToken(args.token, args.newPassword),
+
     registerStaff: async (
       _parent: unknown,
       args: { input: Parameters<typeof authService.registerStaff>[0] },

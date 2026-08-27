@@ -50,6 +50,7 @@ export const rootTypes = /* GraphQL */ `
     login(employeeId: String!, password: String!): AuthPayload!
     googleLogin(credential: String!): AuthPayload!
     requestPasswordReset(email: String!): Boolean!
+    resetPasswordWithToken(token: String!, newPassword: String!): Boolean!
     changePassword(currentPassword: String, newPassword: String!): Boolean!
     registerStaff(input: RegisterInput!): User!
     updateUser(id: ID!, input: UpdateUserInput!): User!

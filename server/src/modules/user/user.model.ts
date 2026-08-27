@@ -44,6 +44,8 @@ export interface IUser {
   emailVerified?: boolean;
   verificationOtp?: string | null;
   verificationOtpExpiry?: Date | null;
+  resetPasswordToken?: string | null;
+  resetPasswordExpires?: Date | null;
   temporaryAssignment?: ITempAssignment | null;
   leaveBalances?: ILeaveBalances;
   shiftStartTime: string;
@@ -93,6 +95,8 @@ const userSchema = new Schema<IUser, UserModelType, UserInstanceMethods>(
     emailVerified: { type: Boolean, default: false },
     verificationOtp: { type: String, default: null },
     verificationOtpExpiry: { type: Date, default: null },
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null },
     temporaryAssignment: { type: tempAssignmentSchema, default: null },
     leaveBalances: {
       casual: { type: Number, default: 12 },
