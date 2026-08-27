@@ -12,6 +12,10 @@ export const GET_ME = gql`
       isActive
       themePreference
       restrictedPages
+      assignedOffice {
+        id
+        name
+      }
       leaveBalances {
         casual
         sick

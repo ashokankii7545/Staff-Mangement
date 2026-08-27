@@ -120,9 +120,24 @@ class AttendanceService {
     let nearestDistance = Infinity;
     let nearestOfficeName = 'Designated Store';
 
+    // The repository never hydrates assigned refs (only the GraphQL resolver
+    // does) – `user.assignedOffice` is a raw UUID string here. Resolve it to the
+    // real office ourselves. Without this the assigned-site geofence check below
+    // ran against a string with no coordinates and ALWAYS failed, so a staff
+    // member's punch fell through to "whatever branch is nearest" instead of their
+    // designated site (the exact location-mismatch bug in attendance records).
+    const assignedRaw = user?.assignedOffice ?? null;
+    const assignedOfficeId =
+      typeof assignedRaw === 'string'
+        ? assignedRaw
+        : (assignedRaw as { _id?: unknown } | null)?._id ?? null;
+    const hydratedAssignedOffice = assignedOfficeId
+      ? await officeRepository.queries.findById(String(assignedOfficeId))
+      : null;
+
     // Resolve the EFFECTIVE site: an active TEMP DUTY assignment wins over the
     // permanent one; expired temp assignments are ignored automatically.
-    let effectiveOffice = (user?.assignedOffice ?? null) as unknown as {
+    let effectiveOffice = hydratedAssignedOffice as unknown as {
       _id: unknown;
       latitude: number;
       longitude: number;
