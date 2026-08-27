@@ -2,7 +2,7 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, Typography, TextField, Button, Alert } from "@mui/material";
 import { useMutation, gql } from "@apollo/client";
-import { useAppNotification } from "../../shared/ui/NotificationProvider";
+import { useNotification } from "../../shared/ui/NotificationProvider";
 
 const RESET_PASSWORD_MUTATION = gql`
   mutation ResetPasswordWithToken($token: String!, $newPassword: String!) {
@@ -14,7 +14,7 @@ export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token");
-  const showNotification = useAppNotification();
+  const notify = useNotification();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
     setErrorMsg("");
     try {
       await resetPassword({ variables: { token, newPassword: password } });
-      showNotification("Password successfully reset! You can now log in.", "success");
+      notify.success("Password successfully reset! You can now log in.");
       navigate("/login");
     } catch (err) {
       setErrorMsg(err.message || "Failed to reset password. The link might be expired.");
