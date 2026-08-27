@@ -1,12 +1,12 @@
 # Render Blueprint for the face-service (commercial-safe SFace/YuNet).
-# In Render: New → Blueprint → pick this repo. Render reads this file and
-# provisions the service. Set FACE_SERVICE_TOKEN's value in the dashboard.
+# In Render: New → Blueprint → pick this repo (Blueprint Path stays "render.yaml").
+# Set FACE_SERVICE_TOKEN's value in the dashboard.
 services:
   - type: web
     name: staff-face-service
     runtime: docker
-    rootDir: face-service
-    dockerfilePath: ./Dockerfile
+    rootDir: face-service # build context = the face-service folder
+    dockerfilePath: ./Dockerfile # relative to rootDir
     plan: free
     healthCheckPath: /health
     autoDeploy: true
