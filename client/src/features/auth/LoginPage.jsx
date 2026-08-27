@@ -44,6 +44,8 @@ import {
   LOGIN,
   GOOGLE_LOGIN,
   SIGNUP,
+  VERIFY_EMAIL_OTP,
+  RESEND_EMAIL_OTP,
 } from '../../graphql/mutations';
 import { useAuth } from '../../shared/auth/AuthContext';
 
@@ -86,6 +88,10 @@ const LoginPage = () => {
   const handleForgotSubmit = async () => { await requestReset({ variables: { email: resetEmail } }); };
   const [info, setInfo] = useState('');
 
+  const [verifyEmailFlow, setVerifyEmailFlow] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [otpValue, setOtpValue] = useState('');
+
   // ── Sign In ────────────────────────────────────────────────────────────────
   const [loginMutation, { loading: loginLoading }] = useAppMutation(LOGIN, {
     onCompleted: (data) => {
@@ -125,17 +131,44 @@ const LoginPage = () => {
     },
   });
 
-  // ── Public Sign Up → PENDING account until admin approves ─────────────────
+  // ── Public Sign Up ──────────────────────────────────────────
   const [signupMutation, { loading: signupLoading }] = useAppMutation(SIGNUP, {
     onCompleted: (data) => {
-      setTab(0);
-      setBaselinePic(null);
+      setVerifyEmailFlow(true);
       setInfo(data.signup.message);
     },
     onError: (err) => {
       setError(err.message || 'Signup failed. Please try again.');
     },
   });
+
+  const [verifyOtpMutation, { loading: verifyingOtp }] = useAppMutation(VERIFY_EMAIL_OTP, {
+    onCompleted: (data) => {
+      setVerifyEmailFlow(false);
+      setTab(0);
+      setBaselinePic(null);
+      setInfo(data.verifyEmailOTP.message);
+    },
+    onError: (err) => setError(err.message),
+  });
+
+  const [resendOtpMutation, { loading: resendingOtp }] = useAppMutation(RESEND_EMAIL_OTP, {
+    onCompleted: (data) => setInfo(data.resendEmailOTP.message),
+    onError: (err) => setError(err.message),
+  });
+
+  const handleVerifyOtp = async () => {
+    if (!otpValue || otpValue.length < 6) return;
+    setError('');
+    setInfo('');
+    await verifyOtpMutation({ variables: { email: pendingEmail, otp: otpValue } });
+  };
+
+  const handleResendOtp = async () => {
+    setError('');
+    setInfo('');
+    await resendOtpMutation({ variables: { email: pendingEmail } });
+  };
 
   const onSignIn = async (values) => {
     setError('');
@@ -155,15 +188,14 @@ const LoginPage = () => {
     }
     setError('');
     setInfo('');
+    setPendingEmail(values.email.trim().toLowerCase());
     await signupMutation({
       variables: {
         input: {
-          
           name: values.name.trim(),
           email: values.email.trim().toLowerCase(),
           password: values.password,
           avatarBase64: baselinePic,
-          
         },
       },
     });
@@ -256,14 +288,13 @@ const LoginPage = () => {
       sx={{
         minHeight: '100dvh',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flexDirection: 'column',
         bgcolor: 'background.default',
-        px: 2,
-        py: { xs: 4, sm: 2 }, // Explicit vertical padding for mobile
+        p: 2,
+        overflowY: 'auto'
       }}
     >
-      <Card sx={{ maxWidth: 460, width: '100%' }}>
+      <Card sx={{ maxWidth: 460, width: '100%', m: 'auto' }}>
         <Tabs
           value={tab}
           onChange={(_, v) => {
@@ -373,21 +404,56 @@ const LoginPage = () => {
                     </Stack>
                   )}
                 </Box>
-                <GenericDialog open={cameraOpen} onClose={() => setCameraOpen(false)} title="Capture Baseline Photo" maxWidth="xs">
-                  <SelfieCapture onCapture={(pic) => { setBaselinePic(pic); setCameraOpen(false); }} isPunching={false} buttonText="Capture & Save" requireCenteredFace />
-                </GenericDialog>
-                <GenericFormEngine
-                schema={signupSchema}
-                fields={signUpFields}
-                initialValues={{}}
-                onSubmit={onSignUp}
-                submitLabel={signupLoading ? 'Submitting…' : 'Request Access'}
-                resetLabel="Clear"
-                validateOn="onSubmit"
-                resetAfterSubmit={true}
-              />
-            </>
-          )}
+                  <GenericDialog open={cameraOpen} onClose={() => setCameraOpen(false)} title="Capture Baseline Photo" maxWidth="xs">
+                    <SelfieCapture onCapture={(pic) => { setBaselinePic(pic); setCameraOpen(false); }} isPunching={false} buttonText="Capture & Save" requireCenteredFace />
+                  </GenericDialog>
+                  
+                  {verifyEmailFlow ? (
+                    <Box sx={{ mt: 2, textAlign: 'center' }}>
+                      <Typography variant="body2" color="text.secondary" mb={3}>
+                        We have sent a 6-digit code to <strong>{pendingEmail}</strong>. Please enter it below to verify your account.
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        label="6-Digit OTP"
+                        value={otpValue}
+                        onChange={(e) => setOtpValue(e.target.value)}
+                        type="number"
+                        sx={{ mb: 2 }}
+                        disabled={verifyingOtp}
+                      />
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={handleVerifyOtp}
+                        disabled={verifyingOtp || otpValue.length < 6}
+                        sx={{ mb: 2 }}
+                      >
+                        {verifyingOtp ? 'Verifying...' : 'Verify Email'}
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="text"
+                        onClick={handleResendOtp}
+                        disabled={resendingOtp}
+                      >
+                        {resendingOtp ? 'Sending...' : 'Resend OTP'}
+                      </Button>
+                    </Box>
+                  ) : (
+                    <GenericFormEngine
+                      schema={signupSchema}
+                      fields={signUpFields}
+                      initialValues={{}}
+                      onSubmit={onSignUp}
+                      submitLabel={signupLoading ? 'Submitting...' : 'Request Access'}
+                      resetLabel="Clear"
+                      validateOn="onSubmit"
+                      resetAfterSubmit={true}
+                    />
+                  )}
+              </>
+            )}
         </CardContent>
       </Card>
 

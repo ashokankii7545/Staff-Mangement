@@ -73,8 +73,10 @@ export const rootTypes = /* GraphQL */ `
     uploadDocument(input: UploadDocumentInput!): StaffDocument!
     deleteMyDocument(id: ID!): Boolean!
     reviewDocument(id: ID!, status: ApprovalStatus!, adminFeedback: String): StaffDocument!
-    """Public self-signup – account stays PENDING until an admin approves it"""
+    """Public self-signup — account stays UNVERIFIED until OTP is verified"""
     signup(input: SignUpInput!): SignupResult!
+    verifyEmailOTP(email: String!, otp: String!): DefaultResponse!
+    resendEmailOTP(email: String!): DefaultResponse!
     reviewUserSignup(id: ID!, status: ApprovalStatus!, note: String, officeId: ID): User!
     setThemePreference(mode: String!): User!
 

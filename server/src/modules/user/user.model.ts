@@ -41,6 +41,9 @@ export interface IUser {
   restrictedPages: string[];
   googleId: string;
   loginMethod: (typeof LOGIN_METHODS)[number];
+  emailVerified?: boolean;
+  verificationOtp?: string | null;
+  verificationOtpExpiry?: Date | null;
   temporaryAssignment?: ITempAssignment | null;
   leaveBalances?: ILeaveBalances;
   shiftStartTime: string;
@@ -87,6 +90,9 @@ const userSchema = new Schema<IUser, UserModelType, UserInstanceMethods>(
     restrictedPages: { type: [String], default: [] },
     googleId: { type: String, default: '' },
     loginMethod: { type: String, enum: [...LOGIN_METHODS], default: 'PASSWORD' },
+    emailVerified: { type: Boolean, default: false },
+    verificationOtp: { type: String, default: null },
+    verificationOtpExpiry: { type: Date, default: null },
     temporaryAssignment: { type: tempAssignmentSchema, default: null },
     leaveBalances: {
       casual: { type: Number, default: 12 },

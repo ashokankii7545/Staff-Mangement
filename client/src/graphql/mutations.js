@@ -439,6 +439,24 @@ export const SIGNUP = gql`
   }
 `;
 
+export const VERIFY_EMAIL_OTP = gql`
+  mutation VerifyEmailOTP($email: String!, $otp: String!) {
+    verifyEmailOTP(email: $email, otp: $otp) {
+      success
+      message
+    }
+  }
+`;
+
+export const RESEND_EMAIL_OTP = gql`
+  mutation ResendEmailOTP($email: String!) {
+    resendEmailOTP(email: $email) {
+      success
+      message
+    }
+  }
+`;
+
 export const REVIEW_USER_SIGNUP = gql`
   mutation ReviewUserSignup($id: ID!, $status: ApprovalStatus!, $note: String) {
     reviewUserSignup(id: $id, status: $status, note: $note) {

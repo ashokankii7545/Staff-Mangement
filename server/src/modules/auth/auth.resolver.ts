@@ -39,6 +39,12 @@ export const authResolvers = {
       ctx: ContextValue,
     ) => authService.signupUser({ ...args.input, ip: ctx.clientIp }),
 
+    verifyEmailOTP: async (_parent: unknown, args: { email: string; otp: string }) => 
+      authService.verifyEmailOTP(args.email, args.otp),
+
+    resendEmailOTP: async (_parent: unknown, args: { email: string }) => 
+      authService.resendEmailOTP(args.email),
+
     reviewUserSignup: async (
       _parent: unknown,
       args: { id: string; status: string; note?: string | null; officeId?: string | null },

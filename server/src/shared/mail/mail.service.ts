@@ -226,6 +226,19 @@ class MailService {
 
   // ── SECURITY / ACCOUNT EMAILS ─────────────────────────────────────────────
 
+  /** Signup Verification OTP */
+  public async sendSignupOTPEmail(email: string, name: string, otp: string): Promise<void> {
+    try {
+      await this.sendTemplateEmail(email, {
+        subject: '[AttendEase] Verify your email address',
+        heading: 'Email Verification',
+        introText: `Hi ${name},\n\nYour 6-digit verification code is:\n\n**${otp}**\n\nThis code will expire in 10 minutes. If you did not request this, please ignore this email.`,
+      });
+    } catch (error) {
+      logger.error('Failed to send OTP email', error);
+    }
+  }
+
   /** Password reset link mail – security flow, always template-branded. */
   public async sendPasswordResetEmail(email: string, resetToken: string): Promise<void> {
     await this.sendTemplateEmail(email, {

@@ -333,25 +333,67 @@ class AuthService {
     await this.assertValidNewAccount({ email: cleanEmail });
 
     const startingBalances = await leaveService.initialBalancesForNewHire();
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     const user = await this.persistWithUniqueEmployeeId({
       role: 'STAFF',
       identity: { name: args.name, email: cleanEmail },
-      buildUser: async (employeeId) => ({
-        employeeId,
-        name: String(args.name).trim(),
-        email: cleanEmail,
-        password: String(args.password),
-        role: 'STAFF',
-        loginMethod: 'PASSWORD',
-        approvalStatus: 'PENDING',
-        leaveBalances: startingBalances,
-        ...(args.avatarBase64 && {
-          avatar: await saveBase64Image(args.avatarBase64, `staff-${employeeId}-${Date.now()}`),
-        }),
-      }),
+      buildUser: async (employeeId) => {
+        let faceEmbedding: number[] | null = null;
+        if (args.avatarBase64) {
+          faceEmbedding = await getFaceEmbeddingFromBase64(args.avatarBase64);
+          if (!faceEmbedding && env.faceServiceUrl) {
+            throw new ValidationError('Could not extract face data. Please take a clearer photo.');
+          }
+        }
+        return {
+          employeeId,
+          name: String(args.name).trim(),
+          email: cleanEmail,
+          password: String(args.password),
+          role: 'STAFF',
+          loginMethod: 'PASSWORD',
+          approvalStatus: 'PENDING',
+          leaveBalances: startingBalances,
+          faceEmbedding: faceEmbedding ?? [],
+          emailVerified: false,
+          verificationOtp: otp,
+          verificationOtpExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+          ...(args.avatarBase64 && {
+            avatar: await saveBase64Image(args.avatarBase64, `staff-${employeeId}-${Date.now()}`),
+          }),
+        };
+      },
     });
 
+    // Send OTP email instead of notifying admins immediately
+    void mailService.sendSignupOTPEmail(cleanEmail, user.name, otp).catch(e => logger.error(e));
+
+    return {
+      success: true,
+      message:
+        'OTP sent! Please check your email to verify your account.',
+    };
+  }
+
+  /** Verify Email OTP */
+  public async verifyEmailOTP(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+    const cleanEmail = this.normalizeEmail(email);
+    const user = await userRepository.queries.findByEmail(cleanEmail);
+    if (!user) throw new ValidationError('User not found.');
+    if (user.emailVerified) throw new ValidationError('Email is already verified.');
+    
+    if (user.verificationOtp !== otp) throw new ValidationError('Invalid verification code.');
+    if (!user.verificationOtpExpiry || user.verificationOtpExpiry < new Date()) {
+      throw new ValidationError('Verification code has expired. Please request a new one.');
+    }
+
+    user.emailVerified = true;
+    user.verificationOtp = null;
+    user.verificationOtpExpiry = null;
+    await user.save();
+
+    // Now notify admins since the email is verified
     await notificationService.notifyAdmins({
       type: 'SIGNUP_REQUEST',
       title: 'New signup awaiting approval',
@@ -368,8 +410,27 @@ class AuthService {
 
     return {
       success: true,
-      message:
-        'Signup request submitted! You can log in once an administrator approves your account.',
+      message: 'Email verified successfully! Admins have been notified.',
+    };
+  }
+
+  /** Resend Email OTP */
+  public async resendEmailOTP(email: string): Promise<{ success: boolean; message: string }> {
+    const cleanEmail = this.normalizeEmail(email);
+    const user = await userRepository.queries.findByEmail(cleanEmail);
+    if (!user) throw new ValidationError('User not found.');
+    if (user.emailVerified) throw new ValidationError('Email is already verified.');
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationOtp = otp;
+    user.verificationOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    void mailService.sendSignupOTPEmail(cleanEmail, user.name, otp).catch(e => logger.error(e));
+
+    return {
+      success: true,
+      message: 'A new OTP has been sent to your email.',
     };
   }
 
