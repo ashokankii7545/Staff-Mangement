@@ -65,6 +65,27 @@ export const GET_TODAY_STATUS = gql`
 
         }
       }
+      sessions {
+        hours
+        clockIn {
+          id
+          createdAt
+          location {
+            address
+            branchName
+          }
+        }
+        clockOut {
+          id
+          createdAt
+          location {
+            address
+            branchName
+          }
+        }
+      }
+      sessionCount
+      hasOpenSession
       totalHours
       status
     }
@@ -113,6 +134,41 @@ export const GET_MY_ATTENDANCE = gql`
           isCoverDuty
         }
       }
+      sessions {
+        hours
+        clockIn {
+          id
+          selfieUrl
+          createdAt
+          approvalStatus
+          faceMatched
+          faceMatchScore
+          location {
+            latitude
+            longitude
+            address
+            branchName
+            withinGeofence
+          }
+        }
+        clockOut {
+          id
+          selfieUrl
+          createdAt
+          approvalStatus
+          faceMatched
+          faceMatchScore
+          location {
+            latitude
+            longitude
+            address
+            branchName
+            withinGeofence
+          }
+        }
+      }
+      sessionCount
+      hasOpenSession
       totalHours
       status
     }
@@ -159,6 +215,45 @@ export const GET_ALL_ATTENDANCE = gql`
           isCoverDuty
         }
       }
+      sessions {
+        hours
+        clockIn {
+          id
+          selfieUrl
+          createdAt
+          approvalStatus
+          adminComments
+          vpnDetected
+          faceMatched
+          faceMatchScore
+          location {
+            latitude
+            longitude
+            address
+            branchName
+            withinGeofence
+          }
+        }
+        clockOut {
+          id
+          selfieUrl
+          createdAt
+          approvalStatus
+          adminComments
+          vpnDetected
+          faceMatched
+          faceMatchScore
+          location {
+            latitude
+            longitude
+            address
+            branchName
+            withinGeofence
+          }
+        }
+      }
+      sessionCount
+      hasOpenSession
       totalHours
       status
     }

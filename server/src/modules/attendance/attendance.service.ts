@@ -1,7 +1,6 @@
 import dayjs from 'dayjs';
 import { DEFAULTS } from '../../config/constants.js';
 import {
-  ConflictError,
   GeofenceError,
   NotFoundError,
   ValidationError,
@@ -81,15 +80,23 @@ class AttendanceService {
     if (!env.faceServiceUrl) return null; // feature off → keep client values
     try {
       const enrolled = await userRepository.queries.getFaceVector(userId);
-      if (!enrolled || enrolled.length === 0) return null; // not enrolled yet
+      if (!enrolled || enrolled.length === 0) {
+        logger.warn(`[face] user ${userId} has NO enrolled face vector → skipping match`);
+        return null; // not enrolled yet
+      }
 
       const live = await getFaceEmbeddingFromBase64(selfieBase64);
       if (!live) {
         // Face service reachable but no face in the selfie → explicit mismatch.
+        logger.warn('[face] no face detected in the live selfie → mismatch');
         return { match: false, similarity: 0 };
       }
 
       const similarity = cosineSimilarity(live, enrolled);
+      logger.info(
+        `[face] similarity=${similarity.toFixed(4)} threshold=${FACE_MATCH_THRESHOLD} ` +
+          `match=${similarity >= FACE_MATCH_THRESHOLD} (enrolledDim=${enrolled.length}, liveDim=${live.length})`,
+      );
       return { match: similarity >= FACE_MATCH_THRESHOLD, similarity };
     } catch (error) {
       logger.error('Server-side face verification failed', error);
@@ -106,15 +113,21 @@ class AttendanceService {
     const { userId, type, input, ipAddress } = args;
     const today = todayISO();
 
-    // ── Duplicate / sequence guards ──
-    const existingPunch = await attendanceRepository.queries.findByUserDateType(userId, today, type);
-    if (existingPunch) {
-      throw new ValidationError(`Already ${type === 'CLOCK_IN' ? 'clocked in' : 'clocked out'} today`);
-    }
+    // ── Multi-session sequence guard (Zoho People-style) ──
+    // A user may clock in/out many times a day. The ONLY invalid moves are
+    // punching the same direction twice in a row: the LAST punch of the day
+    // decides what's allowed next.
+    //   last = CLOCK_IN  → a session is OPEN  → only CLOCK_OUT allowed
+    //   last = CLOCK_OUT / none → no open session → only CLOCK_IN allowed
+    const todaysPunches = await attendanceRepository.queries.listByUserDate(userId, today);
+    const lastPunch = todaysPunches[todaysPunches.length - 1] ?? null;
+    const sessionOpen = lastPunch?.type === 'CLOCK_IN';
 
-    if (type === 'CLOCK_OUT') {
-      const clockIn = await attendanceRepository.queries.findByUserDateType(userId, today, 'CLOCK_IN');
-      if (!clockIn) throw new ValidationError('Cannot clock out without clocking in first');
+    if (type === 'CLOCK_IN' && sessionOpen) {
+      throw new ValidationError('You are already clocked in. Please clock out first.');
+    }
+    if (type === 'CLOCK_OUT' && !sessionOpen) {
+      throw new ValidationError('You are not clocked in. Please clock in first.');
     }
 
     // Layer 1: GPS accuracy check (500m ceiling – desktop Wi-Fi is coarse).
@@ -349,13 +362,8 @@ class AttendanceService {
             : {}),
         });
       } catch (error) {
-        // ⚡ Race fallback: the unique index caught a simultaneous duplicate
-        // punch that slipped past the findOne pre-check above.
-        if (error instanceof ConflictError || (error as { code?: number }).code === 11000) {
-          throw new ValidationError(
-            `Already ${type === 'CLOCK_IN' ? 'clocked in' : 'clocked out'} today`,
-          );
-        }
+        // Multi-session: duplicate punches are allowed, so there's no longer a
+        // unique-index race to translate. Surface any real DB error as-is.
         throw error;
       }
     })();
@@ -429,17 +437,17 @@ class AttendanceService {
       endDate: args.endDate ?? undefined,
     });
 
-    // Group by user + date
-    const grouped = new Map<string, { date: string; user: unknown; clockIn: AttendanceDocument | null; clockOut: AttendanceDocument | null }>();
+    // ── Group ALL punches per user + date (multi-session) ──
+    // Each day can hold many CLOCK_IN/CLOCK_OUT punches. We keep every punch,
+    // then pair them in time order into sessions and sum the durations.
+    const grouped = new Map<string, { date: string; user: unknown; punches: AttendanceDocument[] }>();
     for (const record of records) {
       const u = record.user as unknown as { _id: unknown };
       const key = `${u._id}_${record.date}`;
       if (!grouped.has(key)) {
-        grouped.set(key, { date: record.date, user: record.user, clockIn: null, clockOut: null });
+        grouped.set(key, { date: record.date, user: record.user, punches: [] });
       }
-      const entry = grouped.get(key)!;
-      if (record.type === 'CLOCK_IN') entry.clockIn = record;
-      if (record.type === 'CLOCK_OUT') entry.clockOut = record;
+      grouped.get(key)!.punches.push(record);
     }
 
     for (const exemption of exemptions) {
@@ -447,7 +455,7 @@ class AttendanceService {
       const u = exemption.user as unknown as { _id: unknown };
       const key = `${u._id}_${exemption.date}`;
       if (!grouped.has(key)) {
-        grouped.set(key, { date: exemption.date, user: exemption.user, clockIn: null, clockOut: null });
+        grouped.set(key, { date: exemption.date, user: exemption.user, punches: [] });
       }
     }
 
@@ -456,22 +464,53 @@ class AttendanceService {
     );
 
     return [...grouped.values()].map((entry) => {
-      let totalHours = 0;
-      if (entry.clockIn && entry.clockOut) {
-        totalHours = dayjs(entry.clockOut.createdAt).diff(dayjs(entry.clockIn.createdAt), 'hour', true);
-        totalHours = Math.round(totalHours * 100) / 100;
+      // listByDateRange returns newest-first; sort this day's punches oldest→newest.
+      const punches = [...entry.punches].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+
+      // Pair consecutive CLOCK_IN → CLOCK_OUT into sessions (Zoho-style). Total
+      // working time = SUM of completed session durations. An unpaired trailing
+      // CLOCK_IN is an OPEN session (still on shift) and contributes 0 to the
+      // recorded total until the matching clock-out arrives.
+      const sessions: { clockIn: AttendanceDocument; clockOut: AttendanceDocument | null; hours: number }[] = [];
+      let openIn: AttendanceDocument | null = null;
+      for (const p of punches) {
+        if (p.type === 'CLOCK_IN') {
+          // Two INs in a row (shouldn't happen with the guard) – keep the latest.
+          openIn = p;
+        } else if (p.type === 'CLOCK_OUT' && openIn) {
+          const hours = dayjs(p.createdAt).diff(dayjs(openIn.createdAt), 'hour', true);
+          sessions.push({ clockIn: openIn, clockOut: p, hours: Math.max(0, hours) });
+          openIn = null;
+        }
       }
+      const hasOpenSession = openIn !== null;
+      if (hasOpenSession) {
+        sessions.push({ clockIn: openIn!, clockOut: null, hours: 0 });
+      }
+
+      const totalHours =
+        Math.round(sessions.reduce((sum, s) => sum + s.hours, 0) * 100) / 100;
+
+      // Backward-compatible scalars: first clock-in of the day, last clock-out.
+      const clockIn = punches.find((p) => p.type === 'CLOCK_IN') ?? null;
+      const clockOut = [...punches].reverse().find((p) => p.type === 'CLOCK_OUT') ?? null;
+
+      // Status uses the FIRST clock-in (lateness) and the overall day's totals.
+      const anyPending = punches.some((p) => p.approvalStatus === 'PENDING');
+      const anyRejected = punches.some((p) => p.approvalStatus === 'REJECTED');
 
       let status = 'ABSENT';
       if (exemptionKeys.has(`${(entry.user as unknown as { _id: unknown })._id}_${entry.date}`)) {
         status = 'EXEMPT';
-      } else if (entry.clockIn) {
-        if (entry.clockIn.approvalStatus === 'PENDING' || entry.clockOut?.approvalStatus === 'PENDING') {
+      } else if (clockIn) {
+        if (anyPending) {
           status = 'PENDING';
-        } else if (entry.clockIn.approvalStatus === 'REJECTED' || entry.clockOut?.approvalStatus === 'REJECTED') {
+        } else if (anyRejected) {
           status = 'REJECTED';
         } else {
-          const clockInTime = dayjs(entry.clockIn.createdAt);
+          const clockInTime = dayjs(clockIn.createdAt);
           const userShift =
             (entry.user as unknown as { shiftStartTime?: string })?.shiftStartTime || shiftStart;
           const shiftStartTime = dayjs(`${entry.date}T${userShift}`);
@@ -482,7 +521,22 @@ class AttendanceService {
         }
       }
 
-      return { ...entry, totalHours, status };
+      return {
+        date: entry.date,
+        user: entry.user,
+        clockIn,
+        clockOut,
+        punches,
+        sessions: sessions.map((s) => ({
+          clockIn: s.clockIn,
+          clockOut: s.clockOut,
+          hours: Math.round(s.hours * 100) / 100,
+        })),
+        sessionCount: sessions.length,
+        hasOpenSession,
+        totalHours,
+        status,
+      };
     });
   }
 
@@ -508,12 +562,22 @@ class AttendanceService {
       leaveCountForDay(today),
     ]);
 
-    let late = 0;
-
     // Approval-gated policy: REJECTED punches are INVALID attendance.
     const validRecords = todayRecords.filter((r) => r.approvalStatus !== 'REJECTED');
 
+    // Multi-session: a person may clock in several times today. De-dupe by user
+    // so one staff member counts ONCE, using their EARLIEST clock-in for lateness.
+    const firstClockInByUser = new Map<string, AttendanceDocument>();
     for (const record of validRecords) {
+      const uid = String((record.user as unknown as { _id?: unknown })?._id ?? record.user);
+      const existing = firstClockInByUser.get(uid);
+      if (!existing || new Date(record.createdAt).getTime() < new Date(existing.createdAt).getTime()) {
+        firstClockInByUser.set(uid, record);
+      }
+    }
+
+    let late = 0;
+    for (const record of firstClockInByUser.values()) {
       const clockInTime = dayjs(record.createdAt);
       const userShift =
         (record.user as unknown as { shiftStartTime?: string })?.shiftStartTime || shiftStart;
@@ -523,11 +587,13 @@ class AttendanceService {
       }
     }
 
+    const presentToday = firstClockInByUser.size;
+
     return {
       totalStaff,
-      presentToday: validRecords.length,
+      presentToday,
       lateToday: late,
-      absentToday: Math.max(0, totalStaff - validRecords.length - exemptToday - onLeaveToday),
+      absentToday: Math.max(0, totalStaff - presentToday - exemptToday - onLeaveToday),
       onLeaveToday: onLeaveToday + exemptToday,
     };
   }
@@ -547,9 +613,21 @@ class AttendanceService {
     const shiftStart = settings?.shiftStartTime || DEFAULTS.SHIFT_START;
     const lateThreshold = settings?.lateThresholdMinutes || DEFAULTS.LATE_THRESHOLD_MINUTES;
 
+    // Multi-session: collapse multiple clock-ins per user/day to a single
+    // earliest clock-in before counting, so one person == one present/late.
+    const firstByUserDate = new Map<string, AttendanceDocument>();
+    for (const r of validRecords) {
+      const uid = String((r.user as unknown as { _id?: unknown })?._id ?? r.user);
+      const key = `${uid}_${r.date}`;
+      const existing = firstByUserDate.get(key);
+      if (!existing || new Date(r.createdAt).getTime() < new Date(existing.createdAt).getTime()) {
+        firstByUserDate.set(key, r);
+      }
+    }
+
     // Group by date
     const byDate = new Map<string, { present: number; late: number }>();
-    for (const r of validRecords) {
+    for (const r of firstByUserDate.values()) {
       if (!byDate.has(r.date)) byDate.set(r.date, { present: 0, late: 0 });
       const bucket = byDate.get(r.date)!;
       const clockInTime = dayjs(r.createdAt);
