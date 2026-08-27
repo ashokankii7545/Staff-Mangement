@@ -76,6 +76,17 @@ export class UserRepository extends BaseRepository<typeof users> {
         ) as Promise<IUserDocument | null>,
       ),
 
+    /** Password-reset: match a non-expired reset token. */
+    findByValidResetToken: (token: string): Promise<IUserDocument | null> =>
+      this.exec('findByValidResetToken', () =>
+        this.qFindOne(
+          and(
+            eq(users.resetPasswordToken, token),
+            sql`${users.resetPasswordExpires} > now()`,
+          )!,
+        ) as Promise<IUserDocument | null>,
+      ),
+
     existsByEmployeeId: (employeeId: string): Promise<boolean> =>
       this.exec('existsByEmployeeId', () => this.qExists(eq(users.employeeId, employeeId))),
 

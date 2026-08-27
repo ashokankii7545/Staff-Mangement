@@ -1,51 +1,44 @@
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-import { UserModel } from './src/modules/user/user.model.js';
-import { AttendanceModel } from './src/modules/attendance/attendance.model.js';
-import { LeaveRequestModel } from './src/modules/leave/leave.model.js';
-import { StaffDocumentModel } from './src/modules/document/document.model.js';
-import { NotificationModel } from './src/modules/notification/notification.model.js';
-import { CounterModel } from './src/modules/user/counter.model.js';
+import { ne } from 'drizzle-orm';
+import { db, sql } from './src/config/drizzle.js';
+import {
+  attendance,
+  leaveRequests,
+  documents,
+  notifications,
+  users,
+  counters,
+} from './src/db/schema/index.js';
 
-dotenv.config();
-
+/**
+ * Danger: wipes operational data and all NON-admin users, then resets the
+ * employee-ID counter. Admin accounts are preserved. Postgres/Drizzle version.
+ */
 async function run() {
   try {
-    if (!process.env.MONGO_URI) {
-      throw new Error('MONGO_URI is missing');
-    }
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('✅ Connected to Database');
-
-    // 1. Delete all Attendance records
-    await AttendanceModel.deleteMany({});
+    await db.delete(attendance);
     console.log('🗑️  Deleted all attendance records.');
 
-    // 2. Delete all Leaves
-    await LeaveRequestModel.deleteMany({});
+    await db.delete(leaveRequests);
     console.log('🗑️  Deleted all leave records.');
 
-    // 3. Delete all Staff Documents
-    await StaffDocumentModel.deleteMany({});
+    await db.delete(documents);
     console.log('🗑️  Deleted all staff documents.');
 
-    // 4. Delete all Notifications
-    await NotificationModel.deleteMany({});
+    await db.delete(notifications);
     console.log('🗑️  Deleted all notifications.');
 
-    // 5. Delete all Users EXCEPT Admins
-    const result = await UserModel.deleteMany({ role: { $ne: 'ADMIN' } });
-    console.log(`🗑️  Deleted ${result.deletedCount} non-admin users.`);
+    // FK cascades from users → attendance/leaves/etc are already cleared above.
+    const deleted = await db.delete(users).where(ne(users.role, 'ADMIN')).returning({ id: users.id });
+    console.log(`🗑️  Deleted ${deleted.length} non-admin users.`);
 
-    // 6. Reset Employee ID Counter back to 1000
-    await CounterModel.findOneAndUpdate(
-      { _id: 'userId' },
-      { seq: 1000 },
-      { upsert: true }
-    );
+    await db
+      .insert(counters)
+      .values({ id: 'employeeId', seq: 1000 })
+      .onConflictDoUpdate({ target: counters.id, set: { seq: 1000 } });
     console.log('🔄 Reset employee ID counter to 1000.');
 
     console.log('✨ Database cleaned successfully! Only Admin remains.');
+    await sql.end({ timeout: 5 });
     process.exit(0);
   } catch (err) {
     console.error('❌ Error:', err);

@@ -50,6 +50,8 @@ export const users = pgTable(
     emailVerified: boolean('email_verified').notNull().default(false),
     verificationOtp: text('verification_otp'),
     verificationOtpExpiry: timestamp('verification_otp_expiry', { withTimezone: true }),
+    resetPasswordToken: text('reset_password_token'),
+    resetPasswordExpires: timestamp('reset_password_expires', { withTimezone: true }),
     temporaryAssignment: jsonb('temporary_assignment').$type<TempAssignmentJson | null>(),
     leaveBalances: jsonb('leave_balances')
       .$type<LeaveBalancesJson>()

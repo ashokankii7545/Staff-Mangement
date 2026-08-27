@@ -27,6 +27,7 @@ export interface AccrualStateJson {
 export const settings = pgTable('settings', {
   id: primaryId(),
   organizationName: text('organization_name').notNull().default(DEFAULTS.ORGANIZATION_NAME),
+  appLogo: text('app_logo'),
   officeLatitude: doublePrecision('office_latitude').notNull().default(28.6139),
   officeLongitude: doublePrecision('office_longitude').notNull().default(77.209),
   officeName: text('office_name').notNull().default('Head Office'),

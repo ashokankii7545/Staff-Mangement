@@ -12,14 +12,12 @@ import {
 } from '../../shared/errors/app.errors.js';
 import { checkRateLimit } from '../../shared/security/rate-limiter.util.js';
 import { saveBase64Image } from '../../shared/utils/file-upload.util.js';
-import { hashPassword } from '../../shared/utils/password.util.js';
 import { getFaceEmbeddingFromBase64 } from '../../shared/utils/face.util.js';
 import { mailService } from '../../shared/mail/mail.service.js';
 import { notificationService } from '../notification/notification.service.js';
 import { userRepository } from '../user/user.repository.js';
 import { signAuthToken } from '../../shared/utils/jwt.util.js';
 import { verifyPassword } from '../../shared/utils/password.util.js';
-import { getFaceEmbeddingFromBase64 } from '../../shared/utils/face.util.js';
 import { leaveService } from '../leave/leave.service.js';
 import { notificationRepository } from '../notification/notification.repository.js';
 import type { IUser, IUserDocument } from '../user/user.model.js';
@@ -517,28 +515,26 @@ class AuthService {
     if (!user) return true; // prevent enumeration
     
     const resetToken = crypto.randomUUID();
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hr
-    await user.save();
+    await userRepository.queries.updateById(String(user._id), {
+      resetPasswordToken: resetToken,
+      resetPasswordExpires: new Date(Date.now() + 3600000), // 1 hr
+    });
 
     await mailService.sendPasswordResetEmail(email, resetToken);
     return true;
   }
 
   public async resetPasswordWithToken(token: string, newPassword: string): Promise<boolean> {
-    const { UserModel } = await import('../user/user.model.js');
-    const user = await UserModel.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: new Date() }
+    const user = await userRepository.queries.findByValidResetToken(token);
+    if (!user) throw new ValidationError('Invalid or expired password reset token.');
+
+    // updateById hashes the password automatically when the field is present.
+    await userRepository.queries.updateById(String(user._id), {
+      password: newPassword,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
     });
-    
-    if (!user) throw new Error('Invalid or expired password reset token.');
-    
-    user.password = await hashPassword(newPassword);
-    user.resetPasswordToken = null;
-    user.resetPasswordExpires = null;
-    await user.save();
-    
+
     logger.info(`Password successfully reset for user: ${user.email}`);
     return true;
   }
