@@ -1,18 +1,19 @@
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
-import {
-  NotificationModel,
-  type INotification,
-  type NotificationDocument,
-} from './notification.model.js';
+import { notifications } from '../../db/schema/notification.schema.js';
+import { users } from '../../db/schema/user.schema.js';
+import type { INotification, NotificationDocument } from './notification.model.js';
 
 /**
- * NotificationRepository – in-app inbox data access.
+ * NotificationRepository – in-app inbox data access (Postgres/Drizzle).
+ * "Populated recipient" variants attach the recipient user object (with _id)
+ * so the subscription filter (`recipient._id`) keeps working unchanged.
  */
-export class NotificationRepository extends BaseRepository<INotification> {
+export class NotificationRepository extends BaseRepository<typeof notifications> {
   private static instance: NotificationRepository | null = null;
 
   private constructor() {
-    super(NotificationModel);
+    super(notifications);
   }
 
   public static getInstance(): NotificationRepository {
@@ -22,96 +23,126 @@ export class NotificationRepository extends BaseRepository<INotification> {
     return NotificationRepository.instance;
   }
 
+  /** Attach the populated recipient user (with _id) to a notification row. */
+  private async populateRecipient(row: NotificationDocument | null): Promise<NotificationDocument | null> {
+    if (!row) return null;
+    const u = await this.db.select().from(users).where(eq(users.id, row.recipient)).limit(1);
+    const recipient = u[0] ? { ...u[0], _id: String(u[0].id) } : null;
+    return { ...row, recipient } as unknown as NotificationDocument;
+  }
+
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
   public readonly queries = {
     listForRecipient: (
       recipientId: string,
       options: { limit?: number; unreadOnly?: boolean } = {},
     ): Promise<NotificationDocument[]> =>
-      this.exec('listForRecipient', () => {
-        const filter: Record<string, unknown> = { recipient: recipientId };
-        if (options.unreadOnly) filter.isRead = false;
-        return NotificationModel.find(filter)
-          .sort({ createdAt: -1 })
-          .limit(Math.min(options.limit ?? 30, 100))
-          .populate('recipient', 'name employeeId avatar') as Promise<NotificationDocument[]>;
+      this.exec('listForRecipient', async () => {
+        const conditions = [eq(notifications.recipient, recipientId)];
+        if (options.unreadOnly) conditions.push(eq(notifications.isRead, false));
+        const rows = await this.db
+          .select()
+          .from(notifications)
+          .where(and(...conditions))
+          .orderBy(desc(notifications.createdAt))
+          .limit(Math.min(options.limit ?? 30, 100));
+        return this.withIds(rows) as NotificationDocument[];
       }),
 
     countUnread: (recipientId: string): Promise<number> =>
-      this.exec('countUnread', () => this.qCount({ recipient: recipientId, isRead: false })),
+      this.exec('countUnread', () =>
+        this.qCount(and(eq(notifications.recipient, recipientId), eq(notifications.isRead, false))!),
+      ),
 
     markOneRead: (id: string, recipientId: string): Promise<NotificationDocument | null> =>
-      this.exec('markOneRead', () =>
-        NotificationModel.findOneAndUpdate(
-          { _id: id, recipient: recipientId },
-          { isRead: true },
-          { new: true },
-        ) as Promise<NotificationDocument | null>,
-      ),
+      this.exec('markOneRead', async () => {
+        const rows = await this.db
+          .update(notifications)
+          .set({ isRead: true, updatedAt: new Date() })
+          .where(and(eq(notifications.id, id), eq(notifications.recipient, recipientId)))
+          .returning();
+        return this.withId(rows[0] ?? null) as NotificationDocument | null;
+      }),
 
     markAllRead: (recipientId: string): Promise<number> =>
       this.exec('markAllRead', async () => {
-        const res = await NotificationModel.updateMany(
-          { recipient: recipientId, isRead: false },
-          { isRead: true },
-        );
-        return res.modifiedCount || 0;
+        const rows = await this.db
+          .update(notifications)
+          .set({ isRead: true, updatedAt: new Date() })
+          .where(and(eq(notifications.recipient, recipientId), eq(notifications.isRead, false)))
+          .returning({ id: notifications.id });
+        return rows.length;
       }),
 
     deleteForRecipient: (id: string, recipientId: string): Promise<boolean> =>
       this.exec('deleteForRecipient', async () => {
-        const res = await NotificationModel.deleteOne({ _id: id, recipient: recipientId });
-        return res.deletedCount > 0;
+        const rows = await this.db
+          .delete(notifications)
+          .where(and(eq(notifications.id, id), eq(notifications.recipient, recipientId)))
+          .returning({ id: notifications.id });
+        return rows.length > 0;
       }),
 
     clearRead: (recipientId: string): Promise<number> =>
       this.exec('clearRead', async () => {
-        const res = await NotificationModel.deleteMany({ recipient: recipientId, isRead: true });
-        return res.deletedCount || 0;
+        const rows = await this.db
+          .delete(notifications)
+          .where(and(eq(notifications.recipient, recipientId), eq(notifications.isRead, true)))
+          .returning({ id: notifications.id });
+        return rows.length;
       }),
 
     insertManyNotifications: (docs: Array<Record<string, unknown>>): Promise<NotificationDocument[]> =>
       this.exec('insertManyNotifications', async () => {
-        const inserted = await NotificationModel.insertMany(docs);
-        return inserted as unknown as NotificationDocument[];
+        if (docs.length === 0) return [];
+        const rows = await this.db.insert(notifications).values(docs as never).returning();
+        return this.withIds(rows) as NotificationDocument[];
       }),
 
-    findByIdPopulatedRecipient: (
-      id: string,
-      fields = 'name employeeId avatar',
-    ): Promise<NotificationDocument | null> =>
+    findByIdPopulatedRecipient: (id: string): Promise<NotificationDocument | null> =>
       this.exec('findByIdPopulatedRecipient', async () => {
-        const doc = await NotificationModel.findById(id);
-        return doc ? ((await doc.populate('recipient', fields)) as NotificationDocument) : null;
+        const row = (await this.qFindById(id)) as NotificationDocument | null;
+        return this.populateRecipient(row);
       }),
 
     /**
      * Close stale notifications across EVERY admin inbox once their workflow
-     * item was processed (leave/regularization/attendance/document/medicine).
+     * item was processed. Matches on a jsonb meta key.
      */
     closeMetaNotifications: (type: string, metaKey: string, metaValue: string): Promise<void> =>
       this.exec('closeMetaNotifications', async () => {
-        await NotificationModel.updateMany(
-          { type, [`meta.${metaKey}`]: metaValue },
-          { isRead: true },
-        ).catch(() => undefined);
+        await this.db
+          .update(notifications)
+          .set({ isRead: true, updatedAt: new Date() })
+          .where(
+            and(
+              eq(notifications.type, type),
+              sql`${notifications.meta} ->> ${metaKey} = ${metaValue}`,
+            ),
+          );
       }),
 
     deleteSignupRequests: (userId: string): Promise<void> =>
       this.exec('deleteSignupRequests', async () => {
-        await NotificationModel.deleteMany({
-          'meta.userId': String(userId),
-          type: 'SIGNUP_REQUEST',
-        }).catch(() => undefined);
+        await this.db
+          .delete(notifications)
+          .where(
+            and(
+              eq(notifications.type, 'SIGNUP_REQUEST'),
+              sql`${notifications.meta} ->> 'userId' = ${String(userId)}`,
+            ),
+          );
       }),
 
     /** Reminder de-dupe guard – fires AT MOST ONCE per staff/day/kind. */
     findReminderByKey: (reminderKey: string): Promise<NotificationDocument | null> =>
       this.exec('findReminderByKey', () =>
-        NotificationModel.findOne({
-          type: 'PUNCH_REMINDER',
-          'meta.reminderKey': reminderKey,
-        }).lean() as Promise<NotificationDocument | null>,
+        this.qFindOne(
+          and(
+            eq(notifications.type, 'PUNCH_REMINDER'),
+            sql`${notifications.meta} ->> 'reminderKey' = ${reminderKey}`,
+          )!,
+        ) as Promise<NotificationDocument | null>,
       ),
   };
 }

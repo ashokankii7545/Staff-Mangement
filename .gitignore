@@ -41,3 +41,5 @@ ctx.txt
 
 # Coverage
 coverage/
+/server/.agents
+/server/.claude

@@ -1,6 +1,8 @@
-import type { FilterQuery, SortOrder } from 'mongoose';
+import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
-import { AttendanceModel, type IAttendance, type AttendanceDocument } from './attendance.model.js';
+import { populateRefs, populateRefsOne } from '../../shared/repository/populate.util.js';
+import { attendance } from '../../db/schema/attendance.schema.js';
+import type { IAttendance, AttendanceDocument } from './attendance.model.js';
 
 export interface AttendanceRangeFilter {
   userId?: string | null;
@@ -8,15 +10,18 @@ export interface AttendanceRangeFilter {
   endDate?: string | null;
 }
 
+const REFS = { user: 'user', approvedBy: 'user', punchedOffice: 'office' } as const;
+
 /**
- * AttendanceRepository – punch records ke saare DB operations yahan.
- * Har query ka naam + intent clear hai; execution shared executor se hoti hai.
+ * AttendanceRepository – punch record data access (Postgres/Drizzle).
+ * The {user,date,type} unique index enforces the double-punch guard: a
+ * duplicate insert throws a ConflictError (via DatabaseError.from → 23505).
  */
-export class AttendanceRepository extends BaseRepository<IAttendance> {
+export class AttendanceRepository extends BaseRepository<typeof attendance> {
   private static instance: AttendanceRepository | null = null;
 
   private constructor() {
-    super(AttendanceModel);
+    super(attendance);
   }
 
   public static getInstance(): AttendanceRepository {
@@ -35,70 +40,107 @@ export class AttendanceRepository extends BaseRepository<IAttendance> {
       type: string,
     ): Promise<AttendanceDocument | null> =>
       this.exec('findByUserDateType', () =>
-        this.qFindOne({ user: userId, date, type }) as Promise<AttendanceDocument | null>,
+        this.qFindOne(
+          and(eq(attendance.user, userId), eq(attendance.date, date), eq(attendance.type, type))!,
+        ) as Promise<AttendanceDocument | null>,
       ),
 
     create: (data: Partial<IAttendance>): Promise<AttendanceDocument> =>
-      this.exec('create', async () => (await AttendanceModel.create(data as IAttendance)) as AttendanceDocument),
+      this.exec('create', () => this.qInsert(data) as Promise<AttendanceDocument>),
 
     findById: (id: string): Promise<AttendanceDocument | null> =>
       this.exec('findById', () => this.qFindById(id) as Promise<AttendanceDocument | null>),
 
     findByIdPopulated: (id: string): Promise<AttendanceDocument | null> =>
       this.exec('findByIdPopulated', async () => {
-        const doc = await this.qFindById(id);
-        return doc ? ((await doc.populate('user')) as AttendanceDocument) : null;
+        const row = (await this.qFindById(id)) as AttendanceDocument | null;
+        return populateRefsOne(row, { user: 'user' }) as Promise<AttendanceDocument | null>;
       }),
 
-    /** Summary/history rows for a user or everyone, newest first. */
-    listByDateRange: (
-      filters: AttendanceRangeFilter,
-      sort: Record<string, SortOrder> = { date: -1, createdAt: -1 },
-    ): Promise<AttendanceDocument[]> =>
+    /** Update an existing punch (flag review approval), returns populated. */
+    updateById: (id: string, patch: Partial<IAttendance>): Promise<AttendanceDocument | null> =>
+      this.exec('updateById', async () => {
+        const row = (await this.qUpdateById(id, patch)) as AttendanceDocument | null;
+        return populateRefsOne(row, { user: 'user' }) as Promise<AttendanceDocument | null>;
+      }),
+
+    /** Summary/history rows for a user or everyone, newest first (populated). */
+    listByDateRange: (filters: AttendanceRangeFilter): Promise<AttendanceDocument[]> =>
       this.exec('listByDateRange', async () => {
-        const filter: FilterQuery<IAttendance> = {};
-        if (filters.userId) filter.user = filters.userId;
-        if (filters.startDate || filters.endDate) {
-          filter.date = {
-            ...(filters.startDate ? { $gte: filters.startDate } : {}),
-            ...(filters.endDate ? { $lte: filters.endDate } : {}),
-          };
-        }
-        return AttendanceModel.find(filter).populate('user').sort(sort) as Promise<AttendanceDocument[]>;
+        const conditions = [];
+        if (filters.userId) conditions.push(eq(attendance.user, filters.userId));
+        if (filters.startDate) conditions.push(gte(attendance.date, filters.startDate));
+        if (filters.endDate) conditions.push(lte(attendance.date, filters.endDate));
+        const base = this.db
+          .select()
+          .from(attendance)
+          .orderBy(desc(attendance.date), desc(attendance.createdAt));
+        const rows = conditions.length ? await base.where(and(...conditions)) : await base;
+        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
       }),
 
-    /** All CLOCK_IN punches of one day (dashboard / reminders). */
+    /** All CLOCK_IN punches of one day (dashboard / reminders), populated. */
     listClockInsByDate: (date: string): Promise<AttendanceDocument[]> =>
-      this.exec('listClockInsByDate', () =>
-        AttendanceModel.find({ date, type: 'CLOCK_IN' }).populate('user') as Promise<AttendanceDocument[]>,
-      ),
+      this.exec('listClockInsByDate', async () => {
+        const rows = await this.db
+          .select()
+          .from(attendance)
+          .where(and(eq(attendance.date, date), eq(attendance.type, 'CLOCK_IN')));
+        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
+      }),
 
     listClockInsByDateSelectUser: (date: string): Promise<AttendanceDocument[]> =>
-      this.exec('listClockInsByDateSelectUser', () =>
-        AttendanceModel.find({ date, type: 'CLOCK_IN' }).select('user') as Promise<AttendanceDocument[]>,
-      ),
+      this.exec('listClockInsByDateSelectUser', async () => {
+        const rows = await this.db
+          .select({ id: attendance.id, user: attendance.user })
+          .from(attendance)
+          .where(and(eq(attendance.date, date), eq(attendance.type, 'CLOCK_IN')));
+        return this.withIds(rows) as unknown as AttendanceDocument[];
+      }),
 
     listClockOutsByDateSelectUser: (date: string): Promise<AttendanceDocument[]> =>
-      this.exec('listClockOutsByDateSelectUser', () =>
-        AttendanceModel.find({ date, type: 'CLOCK_OUT' }).select('user') as Promise<AttendanceDocument[]>,
-      ),
+      this.exec('listClockOutsByDateSelectUser', async () => {
+        const rows = await this.db
+          .select({ id: attendance.id, user: attendance.user })
+          .from(attendance)
+          .where(and(eq(attendance.date, date), eq(attendance.type, 'CLOCK_OUT')));
+        return this.withIds(rows) as unknown as AttendanceDocument[];
+      }),
 
-    /** Monthly trend – CLOCK_IN punches across a date window. */
+    /** Monthly trend – CLOCK_IN punches across a date window (populated). */
     listClockInsBetween: (startDate: string, endDate: string): Promise<AttendanceDocument[]> =>
-      this.exec('listClockInsBetween', () =>
-        AttendanceModel.find({
-          date: { $gte: startDate, $lte: endDate },
-          type: 'CLOCK_IN',
-        }).populate('user') as Promise<AttendanceDocument[]>,
-      ),
+      this.exec('listClockInsBetween', async () => {
+        const rows = await this.db
+          .select()
+          .from(attendance)
+          .where(
+            and(
+              gte(attendance.date, startDate),
+              lte(attendance.date, endDate),
+              eq(attendance.type, 'CLOCK_IN'),
+            ),
+          );
+        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
+      }),
 
-    recentActivity: (filter: FilterQuery<IAttendance>, limit = 10): Promise<AttendanceDocument[]> =>
-      this.exec('recentActivity', () =>
-        AttendanceModel.find(filter)
-          .populate('user')
-          .sort({ createdAt: -1 })
-          .limit(limit) as Promise<AttendanceDocument[]>,
-      ),
+    /**
+     * Admin feed of latest punches across everyone or one staff member.
+     * `filter` is either {} (all) or { user: <id> } to match prior callers.
+     */
+    recentActivity: (
+      filter: Record<string, unknown>,
+      limit = 10,
+    ): Promise<AttendanceDocument[]> =>
+      this.exec('recentActivity', async () => {
+        const userId = filter.user ? String(filter.user) : null;
+        const base = this.db
+          .select()
+          .from(attendance)
+          .orderBy(desc(attendance.createdAt))
+          .limit(limit);
+        const rows = userId ? await base.where(eq(attendance.user, userId)) : await base;
+        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
+      }),
   };
 }
 

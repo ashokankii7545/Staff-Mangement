@@ -2,7 +2,7 @@
 
 A modern, VPN-proof staff attendance application with **selfie-based check-in**, **live GPS verification**, and **real-time dashboard analytics**.
 
-Built with React + Material UI + GraphQL + Node.js + MongoDB.
+Built with React + Material UI + GraphQL + Node.js + Supabase (Postgres).
 
 ---
 
@@ -24,7 +24,7 @@ Built with React + Material UI + GraphQL + Node.js + MongoDB.
 |:---|:---|
 | Frontend | React 18 + Vite, Material UI v6, Apollo Client, Recharts |
 | Backend | Node.js, Express, Apollo Server v4, GraphQL |
-| Database | MongoDB + Mongoose |
+| Database | Supabase (PostgreSQL) + Drizzle ORM |
 | Auth | JWT (jsonwebtoken + bcryptjs) |
 | Camera | react-webcam |
 | VPN Check | vpnapi.io + WebRTC |
@@ -36,7 +36,7 @@ Built with React + Material UI + GraphQL + Node.js + MongoDB.
 
 ### Prerequisites
 - Node.js 18+
-- MongoDB (local or Atlas)
+- A Supabase project (PostgreSQL) — use the Transaction pooler connection string
 - A free API key from [vpnapi.io](https://vpnapi.io)
 
 ### 1. Clone & Install
@@ -60,12 +60,22 @@ cp server/.env.example server/.env
 
 Edit `server/.env`:
 ```env
-PORT=4000
-MONGODB_URI=mongodb://localhost:27017/staff-attendance
+PORT=8080
+# Supabase Postgres — Transaction pooler (port 6543). URL-encode @ as %40.
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+DATABASE_SSL=no-verify
+DATABASE_POOL_MAX=10
 JWT_SECRET=your-super-secret-key-change-this
 JWT_EXPIRES_IN=7d
 VPNAPI_KEY=your-vpnapi-key
 UPLOAD_DIR=uploads
+```
+
+Then create the schema and seed the admin user:
+```bash
+cd server
+npm run db:migrate   # apply Drizzle migrations to Supabase
+npm run seed         # create ADMIN001 + default settings
 ```
 
 ### 3. Seed Default Data
@@ -117,7 +127,8 @@ npm run dev
 │   └── src/
 │       ├── graphql/            # Schema & resolvers
 │       ├── services/           # Business logic layer
-│       ├── models/             # Mongoose schemas
+│       ├── db/schema/          # Drizzle table definitions
+│       ├── models/             # Row/document TypeScript types
 │       ├── middleware/         # JWT auth
 │       └── utils/              # Geofence, VPN, uploads
 ```

@@ -126,7 +126,7 @@ class MedicineService {
 
     const isNewMedicine = !linked;
 
-    const request = await medicineRepository.queries.create({
+    const created = await medicineRepository.queries.create({
       requestedBy: requesterId as never,
       medicineName: linked ? linked.name : typedName,
       strength: String(input.strength || '').trim() || linked?.strength || '',
@@ -138,7 +138,8 @@ class MedicineService {
       catalogMedicine: (linked?._id ?? null) as never,
       isNewMedicine,
     });
-    await request.populate('requestedBy');
+    const request =
+      (await medicineRepository.queries.findByIdPopulatedRequestedBy(String(created._id))) ?? created;
     const staffName = (request.requestedBy as unknown as { name: string })?.name;
 
     // In-app notification to all admins (requester included if they are an admin).
@@ -292,9 +293,8 @@ class MedicineService {
   ): Promise<MedicineCatalogDocument> {
     if (!imageBase64) return doc;
     const url = await saveBase64MedicineImage(imageBase64, `med_${String(doc._id)}`);
-    doc.image = url;
-    await doc.save();
-    return doc;
+    const updated = await medicineCatalogRepository.queries.update(String(doc._id), { image: url });
+    return updated ?? { ...doc, image: url };
   }
 
   /** Admin moves a request through ORDERED → SUPPLIED (or REJECTS it). */
@@ -312,17 +312,18 @@ class MedicineService {
     const request = await medicineRepository.queries.findByIdPopulatedRequestedBy(id);
     if (!request) throw new ValidationError('Medicine request not found');
 
-    request.status = status as MedicineRequestDocument['status'];
-    request.adminFeedback = adminFeedback ?? '';
-    request.handledBy = handler.id as never;
-    await request.save();
-    await request.populate(['requestedBy', 'handledBy']);
+    const updatedRequest =
+      (await medicineRepository.queries.updateById(String(request._id), {
+        status: status as MedicineRequestDocument['status'],
+        adminFeedback: adminFeedback ?? '',
+        handledBy: handler.id,
+      })) ?? request;
 
     // Close the original request notification in every admin's inbox.
     await notificationRepository.queries.closeMetaNotifications(
       'MEDICINE_REQUEST',
       'medicineRequestId',
-      String(request._id),
+      String(updatedRequest._id),
     );
 
     const requester = request.requestedBy as unknown as { _id: unknown; name?: string; email?: string };
@@ -381,7 +382,7 @@ class MedicineService {
         .catch(() => undefined);
     }
 
-    return request;
+    return updatedRequest;
   }
 }
 

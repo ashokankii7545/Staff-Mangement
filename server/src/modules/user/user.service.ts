@@ -88,10 +88,14 @@ class UserService {
       throw new ValidationError('You cannot deactivate your own account.');
     }
 
-    target.isActive = !target.isActive;
-    await target.save();
-    void mailService.sendAccountStatusEmail(target, { isActive: target.isActive }).catch((e) => logger.error(e));
-    return target;
+    const updated = await userRepository.queries.updateById(
+      String(target._id),
+      { isActive: !target.isActive },
+      { populate: ['assignedOffice'] },
+    );
+    const result = updated ?? target;
+    void mailService.sendAccountStatusEmail(result, { isActive: result.isActive }).catch((e) => logger.error(e));
+    return result;
   }
 
   /** Persist the UI theme so it follows the user across devices & re-logins. */
@@ -127,13 +131,14 @@ class UserService {
     const target = await userRepository.queries.findById(args.userId);
     if (!target) throw new ValidationError('User not found.');
 
-    target.temporaryAssignment = {
-      office: office._id as never,
-      startDate: start.toDate(),
-      endDate: end.toDate(),
-      reason: args.reason || '',
-    };
-    await target.save();
+    await userRepository.queries.updateById(String(target._id), {
+      temporaryAssignment: {
+        office: String(office._id),
+        startDate: start.toDate().toISOString(),
+        endDate: end.toDate().toISOString(),
+        reason: args.reason || '',
+      },
+    });
 
     await notificationService.push({
       recipientIds: [String(target._id)],
@@ -169,7 +174,7 @@ class UserService {
 
     const target = await userRepository.queries.updateById(
       userId,
-      { $set: { temporaryAssignment: { office: null, startDate: null, endDate: null, reason: '' } } },
+      { temporaryAssignment: { office: null, startDate: null, endDate: null, reason: '' } },
       { populate: ['assignedOffice', 'temporaryAssignment.office'] },
     );
 
@@ -195,13 +200,12 @@ class UserService {
   }): Promise<unknown> {
     const cleanDate = dayjs(args.date).format('YYYY-MM-DD');
 
-    let exemption = await dayOffRepository.queries.upsertByUserAndDate(
+    const exemption = await dayOffRepository.queries.upsertByUserAndDate(
       args.userId,
       cleanDate,
       args.reason ?? '',
       args.actorId,
     );
-    exemption = await exemption.populate(['user', 'createdBy']);
 
     await notificationService.push({
       recipientIds: [args.userId],

@@ -1,53 +1,23 @@
-import mongoose, { Schema, type Model } from 'mongoose';
-import {
-  MEDICINE_STATUSES,
-  MEDICINE_UNITS,
-  MEDICINE_URGENCIES,
-} from '../../config/constants.js';
+import type { WithId } from '../../shared/repository/base-repository.js';
+import type { MedicineRequestRow } from '../../db/schema/medicine.schema.js';
+import type { MEDICINE_STATUSES } from '../../config/constants.js';
 
-/** Pharmacy stock request raised by staff for the owner/admin. */
+/** Pharmacy stock-request types – backed by Postgres/Drizzle. */
 export interface IMedicineRequest {
-  requestedBy: mongoose.Types.ObjectId;
+  requestedBy: string;
   medicineName: string;
   strength: string;
   quantity: number;
   unit: string;
   urgency: string;
   notes: string;
-  status: (typeof MEDICINE_STATUSES)[number];
+  status: (typeof MEDICINE_STATUSES)[number] | string;
   adminFeedback: string;
-  /** Linked master-catalogue entry when the medicine already exists there. */
-  catalogMedicine?: mongoose.Types.ObjectId | null;
-  /** True when the typed medicine is NOT yet in the owner's catalogue. */
+  catalogMedicine?: string | null;
   isNewMedicine: boolean;
-  handledBy?: mongoose.Types.ObjectId | null;
+  handledBy?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export type MedicineRequestDocument = mongoose.HydratedDocument<IMedicineRequest>;
-
-const medicineRequestSchema = new Schema<IMedicineRequest>(
-  {
-    requestedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    medicineName: { type: String, required: true, trim: true },
-    strength: { type: String, trim: true, default: '' }, // e.g. "500mg", "10ml"
-    quantity: { type: Number, required: true, min: 1 },
-    unit: { type: String, enum: [...MEDICINE_UNITS], default: 'Strips' },
-    urgency: { type: String, enum: [...MEDICINE_URGENCIES], default: 'NORMAL' },
-    notes: { type: String, trim: true, default: '' },
-    status: { type: String, enum: [...MEDICINE_STATUSES], default: 'PENDING' },
-    adminFeedback: { type: String, trim: true, default: '' },
-    catalogMedicine: { type: Schema.Types.ObjectId, ref: 'MedicineCatalog', default: null },
-    isNewMedicine: { type: Boolean, default: false },
-    handledBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
-  },
-  { timestamps: true },
-);
-
-medicineRequestSchema.index({ status: 1, createdAt: -1 });
-medicineRequestSchema.index({ requestedBy: 1, createdAt: -1 });
-
-export const MedicineRequestModel: Model<IMedicineRequest> =
-  (mongoose.models.MedicineRequest as Model<IMedicineRequest>) ||
-  mongoose.model<IMedicineRequest>('MedicineRequest', medicineRequestSchema);
+export type MedicineRequestDocument = WithId<MedicineRequestRow>;

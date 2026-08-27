@@ -1,14 +1,16 @@
+import { and, asc, eq, gte, lte } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
-import { HolidayModel, type IHoliday, type HolidayDocument } from './holiday.model.js';
+import { holidays } from '../../db/schema/holiday.schema.js';
+import type { IHoliday, HolidayDocument } from './holiday.model.js';
 
 /**
- * HolidayRepository – holiday calendar data access.
+ * HolidayRepository – holiday calendar data access (Postgres/Drizzle).
  */
-export class HolidayRepository extends BaseRepository<IHoliday> {
+export class HolidayRepository extends BaseRepository<typeof holidays> {
   private static instance: HolidayRepository | null = null;
 
   private constructor() {
-    super(HolidayModel);
+    super(holidays);
   }
 
   public static getInstance(): HolidayRepository {
@@ -22,22 +24,25 @@ export class HolidayRepository extends BaseRepository<IHoliday> {
   public readonly queries = {
     /** Active holidays, optionally constrained to a calendar year. */
     listByYear: (year?: number): Promise<HolidayDocument[]> =>
-      this.exec('listByYear', () => {
-        const filter: Record<string, unknown> = { isActive: true };
+      this.exec('listByYear', async () => {
+        const conditions = [eq(holidays.isActive, true)];
         if (year) {
-          filter.date = {
-            $gte: new Date(`${year}-01-01`),
-            $lte: new Date(`${year}-12-31`),
-          };
+          conditions.push(gte(holidays.date, new Date(`${year}-01-01`)));
+          conditions.push(lte(holidays.date, new Date(`${year}-12-31T23:59:59.999Z`)));
         }
-        return HolidayModel.find(filter).sort({ date: 1 }) as Promise<HolidayDocument[]>;
+        const rows = await this.db
+          .select()
+          .from(holidays)
+          .where(and(...conditions))
+          .orderBy(asc(holidays.date));
+        return this.withIds(rows) as HolidayDocument[];
       }),
 
     create: (data: Partial<IHoliday>): Promise<HolidayDocument> =>
-      this.exec('create', async () => (await HolidayModel.create(data as IHoliday)) as HolidayDocument),
+      this.exec('create', () => this.qInsert(data) as Promise<HolidayDocument>),
 
     deleteById: (id: string): Promise<HolidayDocument | null> =>
-      this.exec('deleteById', () => this.qDeleteById(id)),
+      this.exec('deleteById', () => this.qDeleteById(id) as Promise<HolidayDocument | null>),
   };
 }
 

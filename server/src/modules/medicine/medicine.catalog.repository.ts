@@ -1,19 +1,21 @@
+import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 import { ValidationError } from '../../shared/errors/app.errors.js';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
-import {
-  MedicineCatalogModel,
-  type IMedicineCatalog,
-  type MedicineCatalogDocument,
-} from './medicine.catalog.model.js';
+import { medicineCatalog } from '../../db/schema/medicine-catalog.schema.js';
+import type { IMedicineCatalog, MedicineCatalogDocument } from './medicine.catalog.model.js';
+
+/** Escape a user string for use as a literal inside an ILIKE pattern. */
+const escapeLike = (s: string): string => s.replace(/[\\%_]/g, (m) => `\\${m}`);
 
 /**
- * MedicineCatalogRepository – master medicine-list data access.
+ * MedicineCatalogRepository – master medicine-list data access (Postgres/Drizzle).
+ * `createdBy` is returned as a uuid; the resolver/loader populates it.
  */
-export class MedicineCatalogRepository extends BaseRepository<IMedicineCatalog> {
+export class MedicineCatalogRepository extends BaseRepository<typeof medicineCatalog> {
   private static instance: MedicineCatalogRepository | null = null;
 
   private constructor() {
-    super(MedicineCatalogModel);
+    super(medicineCatalog);
   }
 
   public static getInstance(): MedicineCatalogRepository {
@@ -25,66 +27,66 @@ export class MedicineCatalogRepository extends BaseRepository<IMedicineCatalog> 
 
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
   public readonly queries = {
-    /** Admin grid – newest first; optionally include deactivated entries. */
+    /** Admin grid – A→Z; optionally include deactivated entries. */
     listAll: (includeInactive = false): Promise<MedicineCatalogDocument[]> =>
-      this.exec('listAll', () =>
-        MedicineCatalogModel.find(includeInactive ? {} : { isActive: true })
-          .sort({ name: 1 })
-          .limit(1000)
-          .populate('createdBy', 'name employeeId') as Promise<MedicineCatalogDocument[]>,
-      ),
+      this.exec('listAll', async () => {
+        const base = this.db
+          .select()
+          .from(medicineCatalog)
+          .orderBy(asc(medicineCatalog.name))
+          .limit(1000);
+        const rows = includeInactive ? await base : await base.where(eq(medicineCatalog.isActive, true));
+        return this.withIds(rows) as MedicineCatalogDocument[];
+      }),
 
     /** Staff autocomplete – active entries only, optional text filter. */
-    search: (term?: string): Promise<MedicineCatalogDocument[]> => {
-      const filter: Record<string, unknown> = { isActive: true };
-      if (term && term.trim()) {
-        const rx = new RegExp(term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-        // Brand name, salt/composition ya manufacturer – jis se bhi staff ko
-        // yaad ho, search mil jaye (Netmeds-style product search).
-        filter.$or = [
-          { name: rx },
-          { genericName: rx },
-          { manufacturer: rx },
-          { strength: rx },
-        ];
-      }
-      return this.exec('search', () =>
-        MedicineCatalogModel.find(filter)
-          .sort({ name: 1 })
-          .limit(200) as Promise<MedicineCatalogDocument[]>,
-      );
-    },
+    search: (term?: string): Promise<MedicineCatalogDocument[]> =>
+      this.exec('search', async () => {
+        const conditions = [eq(medicineCatalog.isActive, true)];
+        if (term && term.trim()) {
+          const pat = `%${escapeLike(term.trim())}%`;
+          conditions.push(
+            or(
+              ilike(medicineCatalog.name, pat),
+              ilike(medicineCatalog.genericName, pat),
+              ilike(medicineCatalog.manufacturer, pat),
+              ilike(medicineCatalog.strength, pat),
+            )!,
+          );
+        }
+        const rows = await this.db
+          .select()
+          .from(medicineCatalog)
+          .where(and(...conditions))
+          .orderBy(asc(medicineCatalog.name))
+          .limit(200);
+        return this.withIds(rows) as MedicineCatalogDocument[];
+      }),
 
     /** Case-insensitive exact-name match – powers "already exists?" checks. */
     findByNameExact: (name: string): Promise<MedicineCatalogDocument | null> =>
       this.exec('findByNameExact', () =>
-        MedicineCatalogModel.findOne({
-          name: { $regex: `^${name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
-        }) as Promise<MedicineCatalogDocument | null>,
+        this.qFindOne(
+          sql`lower(${medicineCatalog.name}) = lower(${name.trim()})`,
+        ) as Promise<MedicineCatalogDocument | null>,
       ),
 
     findById: (id: string): Promise<MedicineCatalogDocument | null> =>
-      this.exec('findById', () => MedicineCatalogModel.findById(id)),
+      this.exec('findById', () => this.qFindById(id) as Promise<MedicineCatalogDocument | null>),
 
     create: (
       data: Partial<IMedicineCatalog> & { createdBy?: string },
     ): Promise<MedicineCatalogDocument> =>
-      this.exec(
-        'create',
-        async () =>
-          (await MedicineCatalogModel.create(data as IMedicineCatalog)) as MedicineCatalogDocument,
-      ),
+      this.exec('create', () => this.qInsert(data) as Promise<MedicineCatalogDocument>),
 
     update: (id: string, patch: Partial<IMedicineCatalog>): Promise<MedicineCatalogDocument | null> =>
-      this.exec('update', () =>
-        MedicineCatalogModel.findByIdAndUpdate(id, { $set: patch }, { new: true }).exec(),
-      ),
+      this.exec('update', () => this.qUpdateById(id, patch) as Promise<MedicineCatalogDocument | null>),
   };
 
   /** Soft delete – deactivate so history stays intact but search hides it. */
   public async deactivate(id: string): Promise<MedicineCatalogDocument | null> {
     return this.exec('deactivate', () =>
-      MedicineCatalogModel.findByIdAndUpdate(id, { $set: { isActive: false } }, { new: true }).exec(),
+      this.qUpdateById(id, { isActive: false }) as Promise<MedicineCatalogDocument | null>,
     );
   }
 

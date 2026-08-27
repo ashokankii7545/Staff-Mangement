@@ -1,39 +1,48 @@
-import type { FilterQuery, Model, SortOrder } from 'mongoose';
+import { eq, sql, type SQL } from 'drizzle-orm';
+import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
+import { db } from '../../config/drizzle.js';
 import { DatabaseError } from '../errors/app.errors.js';
 import { logger } from '../logger/logger.js';
 
 /**
  * ────────────────────────────────────────────────────────────────────────────
- * ⭐ BASE REPOSITORY – THE SHARED QUERY EXECUTOR ⭐
+ * ⭐ BASE REPOSITORY – THE SHARED QUERY EXECUTOR (Drizzle / Postgres) ⭐
  * ────────────────────────────────────────────────────────────────────────────
  * Every module owns ONE repository class extending this base. Inside it sits a
- * `queries` OBJECT – a catalog of named dynamic queries, e.g.:
+ * `queries` OBJECT – a catalog of named dynamic queries. Services NEVER touch
+ * Drizzle directly – they call `repository.queries.<name>(...)`.
  *
- *   public readonly queries = {
- *     findById:        (id: string)   => this.exec('findById', () => ...),
- *     findByEmail:     (email: string)=> this.exec('findByEmail', () => ...),
- *   };
+ * All execution funnels through `exec()`, so timing logs, error normalization
+ * (DatabaseError / ConflictError) and future concerns (tracing, caching) live
+ * in exactly ONE place – identical contract to the old Mongoose base.
  *
- * Services NEVER touch Mongoose directly – they call
- * `repository.queries.<name>(...)`. All execution funnels through `exec()`,
- * so timing logs, error normalization and future concerns (tracing, caching,
- * transactions) live in exactly ONE place.
- *
- * Note: the generic stays UNCONSTRAINED on purpose – module interfaces stay
- * plain data shapes; all document plumbing is encapsulated below.
+ * ── _id COMPATIBILITY ──
+ * The old code used Mongo `_id` everywhere (`String(user._id)`, populated refs
+ * with `._id`). Postgres rows expose `id`. `withId()` attaches a string `_id`
+ * alias equal to `id` so higher layers keep working unchanged.
  */
 
-/** Internal escape hatch – repositories annotate their public return types. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type AnyModel = Model<any>;
-type AnyFilter = FilterQuery<any>;
+type AnyRow = Record<string, any>;
 
-export abstract class BaseRepository<T extends object = Record<string, any>> {
-  protected constructor(private readonly _model: AnyModel) {}
+/** A row with the Mongo-style `_id` alias attached. */
+export type WithId<T> = T & { _id: string; id: string };
 
-  /** Raw Mongoose model – exposed read-only for advanced use (aggregations). */
-  public get model(): AnyModel {
-    return this._model;
+/** Table shape the base needs: a Drizzle table exposing an `id` column. */
+export interface TableWithId extends PgTable {
+  id: PgColumn;
+}
+
+export abstract class BaseRepository<TTable extends TableWithId> {
+  protected readonly db = db;
+
+  protected constructor(protected readonly table: TTable) {}
+
+  /** Table name for log lines (best-effort). */
+  private get tableName(): string {
+    return (this.table as unknown as { [k: symbol]: { name?: string } })[
+      Symbol.for('drizzle:Name')
+    ]?.name ?? 'table';
   }
 
   /**
@@ -45,61 +54,90 @@ export abstract class BaseRepository<T extends object = Record<string, any>> {
     const startedAt = Date.now();
     try {
       const result = await query();
-      logger.debug(`[db] ${this._model.modelName}.${operation} (${Date.now() - startedAt}ms)`);
+      logger.debug(`[db] ${this.tableName}.${operation} (${Date.now() - startedAt}ms)`);
       return result;
     } catch (error) {
-      logger.error(
-        `[db] ${this._model.modelName}.${operation} FAILED (${Date.now() - startedAt}ms)`,
-        error,
-      );
+      logger.error(`[db] ${this.tableName}.${operation} FAILED (${Date.now() - startedAt}ms)`, error);
       throw DatabaseError.from(error);
     }
   }
 
-  // ── Generic building blocks reused by most module query catalogs ──────────
-
-  protected qFindById(id: string): Promise<any> {
-    return this._model.findById(id);
+  /** Attach the Mongo-style `_id` alias to a row (or null through). */
+  protected withId<T extends AnyRow>(row: T | null | undefined): WithId<T> | null {
+    if (!row) return null;
+    return { ...row, _id: String(row.id) } as WithId<T>;
   }
 
-  protected qFindOne(filter: AnyFilter, projection?: string | null): Promise<any> {
-    return this._model.findOne(filter, projection ?? null);
+  /** Attach `_id` to every row in a list. */
+  protected withIds<T extends AnyRow>(rows: T[]): WithId<T>[] {
+    return rows.map((r) => ({ ...r, _id: String(r.id) })) as WithId<T>[];
   }
 
-  protected qFind(
-    filter: AnyFilter,
-    options: { sort?: Record<string, SortOrder>; limit?: number; skip?: number } = {},
-  ): Promise<any[]> {
-    let query = this._model.find(filter);
-    if (options.sort) query = query.sort(options.sort);
-    if (options.limit !== undefined) query = query.limit(options.limit);
-    if (options.skip !== undefined) query = query.skip(options.skip);
-    return query.exec();
+  // ── Generic building blocks reused by module query catalogs ───────────────
+
+  protected async qFindById(id: string): Promise<AnyRow | null> {
+    const rows = await this.db
+      .select()
+      .from(this.table as PgTable)
+      .where(eq(this.table.id, id))
+      .limit(1);
+    return this.withId(rows[0] ?? null);
   }
 
-  protected qCount(filter: AnyFilter): Promise<number> {
-    return this._model.countDocuments(filter);
+  protected async qFindOne(where: SQL): Promise<AnyRow | null> {
+    const rows = await this.db.select().from(this.table as PgTable).where(where).limit(1);
+    return this.withId(rows[0] ?? null);
   }
 
-  protected async qExists(filter: AnyFilter): Promise<boolean> {
-    const doc = await this._model.exists(filter);
-    return doc !== null;
+  protected async qFindMany(where?: SQL): Promise<AnyRow[]> {
+    const base = this.db.select().from(this.table as PgTable);
+    const rows = where ? await base.where(where) : await base;
+    return this.withIds(rows);
   }
 
-  protected qCreate(data: Record<string, unknown>): Promise<any> {
-    return this._model.create(data);
+  protected async qInsert(values: AnyRow): Promise<AnyRow> {
+    const rows = await this.db
+      .insert(this.table as PgTable)
+      .values(values as never)
+      .returning();
+    return this.withId(rows[0])!;
   }
 
-  protected qUpdateOne(
-    filter: AnyFilter,
-    update: Record<string, unknown>,
-    options: Record<string, unknown> = { new: true },
-  ): Promise<any> {
-    return this._model.findOneAndUpdate(filter as never, update as never, options as never);
+  protected async qUpdateById(id: string, values: AnyRow): Promise<AnyRow | null> {
+    const rows = await this.db
+      .update(this.table as PgTable)
+      .set({ ...values, updatedAt: new Date() } as never)
+      .where(eq(this.table.id, id))
+      .returning();
+    return this.withId(rows[0] ?? null);
   }
 
-  protected qDeleteById(id: string): Promise<any> {
-    return this._model.findByIdAndDelete(id);
+  protected async qUpdateWhere(where: SQL, values: AnyRow): Promise<AnyRow[]> {
+    const rows = await this.db
+      .update(this.table as PgTable)
+      .set({ ...values, updatedAt: new Date() } as never)
+      .where(where)
+      .returning();
+    return this.withIds(rows);
+  }
+
+  protected async qDeleteById(id: string): Promise<AnyRow | null> {
+    const rows = await this.db
+      .delete(this.table as PgTable)
+      .where(eq(this.table.id, id))
+      .returning();
+    return this.withId(rows[0] ?? null);
+  }
+
+  protected async qCount(where?: SQL): Promise<number> {
+    const base = this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(this.table as PgTable);
+    const rows = where ? await base.where(where) : await base;
+    return rows[0]?.count ?? 0;
+  }
+
+  protected async qExists(where: SQL): Promise<boolean> {
+    return (await this.qCount(where)) > 0;
   }
 }
-

@@ -1,6 +1,8 @@
-import type { FilterQuery } from 'mongoose';
+import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
-import { UserModel, type IUser, type IUserDocument } from './user.model.js';
+import { users } from '../../db/schema/user.schema.js';
+import { hashPassword } from '../../shared/utils/password.util.js';
+import type { IUser, IUserDocument } from './user.model.js';
 
 /** Options accepted by catalog entries that can populate refs. */
 export interface FindUserOptions {
@@ -8,16 +10,23 @@ export interface FindUserOptions {
 }
 
 /**
- * UserRepository – ALL database access for the user module lives here.
- * The `queries` object is a catalog of named dynamic queries; services call
- * e.g. `userRepository.queries.findByEmail(email)` and never touch Mongoose.
+ * UserRepository – ALL database access for the user module lives here
+ * (Postgres/Drizzle). The public `queries` catalog keeps the SAME signatures
+ * as the Mongoose version so services/resolvers/auth are unchanged.
+ *
+ * Notes on parity with the old behavior:
+ *  - Password hashing (was a Mongoose pre-save hook) now happens here on
+ *    create/update whenever a `password` field is present.
+ *  - `assignedOffice` / `temporaryAssignment.office` are returned as uuid
+ *    strings; the resolver/DataLoader "populates" them, exactly as before.
+ *  - Atomic leave-balance ops use jsonb arithmetic in a single UPDATE so two
+ *    concurrent approvals can never both pass the >= guard.
  */
-export class UserRepository extends BaseRepository<IUser> {
+export class UserRepository extends BaseRepository<typeof users> {
   private static instance: UserRepository | null = null;
 
-  // Singleton – one repository instance per process.
   private constructor() {
-    super(UserModel);
+    super(users);
   }
 
   public static getInstance(): UserRepository {
@@ -27,203 +36,265 @@ export class UserRepository extends BaseRepository<IUser> {
     return UserRepository.instance;
   }
 
+  /** Hash the password field in-place when present (create/update parity with pre-save hook). */
+  private async withHashedPassword<T extends { password?: string | null }>(data: T): Promise<T> {
+    if (data.password) {
+      return { ...data, password: await hashPassword(String(data.password)) };
+    }
+    return data;
+  }
+
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
   public readonly queries = {
-    findById: (id: string, options: FindUserOptions = {}): Promise<IUserDocument | null> =>
-      this.exec('findById', async () => {
-        let query = UserModel.findById(id);
-        for (const path of options.populate ?? []) {
-          query = query.populate(path);
-        }
-        return query as Promise<IUserDocument | null>;
-      }),
+    findById: (id: string, _options: FindUserOptions = {}): Promise<IUserDocument | null> =>
+      // Population is handled by the resolver/DataLoader; the row carries ids.
+      this.exec('findById', () => this.qFindById(id) as Promise<IUserDocument | null>),
 
     findByIdentifier: (identifier: string): Promise<IUserDocument | null> =>
-      this.findOneExec({ $or: [{ email: identifier.toLowerCase() }, { employeeId: identifier }] }),
+      this.exec('findByIdentifier', () =>
+        this.qFindOne(
+          or(eq(users.email, identifier.toLowerCase()), eq(users.employeeId, identifier))!,
+        ) as Promise<IUserDocument | null>,
+      ),
 
     findByEmail: (email: string): Promise<IUserDocument | null> =>
-      this.findOneExec({ email: email.toLowerCase() }),
+      this.exec('findByEmail', () =>
+        this.qFindOne(eq(users.email, email.toLowerCase())) as Promise<IUserDocument | null>,
+      ),
 
     findByEmployeeId: (employeeId: string): Promise<IUserDocument | null> =>
-      this.findOneExec({ employeeId: String(employeeId).trim().toUpperCase() }),
+      this.exec('findByEmployeeId', () =>
+        this.qFindOne(
+          eq(users.employeeId, String(employeeId).trim().toUpperCase()),
+        ) as Promise<IUserDocument | null>,
+      ),
 
     findByGoogleIdOrEmail: (googleId: string, email: string): Promise<IUserDocument | null> =>
-      this.findOneExec({ $or: [{ googleId }, { email }] }),
+      this.exec('findByGoogleIdOrEmail', () =>
+        this.qFindOne(
+          or(eq(users.googleId, googleId), eq(users.email, email.toLowerCase()))!,
+        ) as Promise<IUserDocument | null>,
+      ),
 
     existsByEmployeeId: (employeeId: string): Promise<boolean> =>
-      this.exec('existsByEmployeeId', () => this.qExists({ employeeId })),
+      this.exec('existsByEmployeeId', () => this.qExists(eq(users.employeeId, employeeId))),
 
     existsByEmail: (email: string): Promise<boolean> =>
-      this.exec('existsByEmail', () => this.qExists({ email: email.toLowerCase() })),
+      this.exec('existsByEmail', () => this.qExists(eq(users.email, email.toLowerCase()))),
 
     /** Active, fully-approved staff accounts (reminder sweeps). */
     listActiveStaff: (): Promise<IUserDocument[]> =>
       this.exec('listActiveStaff', () =>
-        UserModel.find({ role: 'STAFF', isActive: true, approvalStatus: 'APPROVED' }).select(
-          '_id name',
+        this.qFindMany(
+          and(eq(users.role, 'STAFF'), eq(users.isActive, true), eq(users.approvalStatus, 'APPROVED'))!,
         ) as Promise<IUserDocument[]>,
       ),
 
     findActiveAdmins: (): Promise<IUserDocument[]> =>
       this.exec('findActiveAdmins', () =>
-        UserModel.find({ role: 'ADMIN', isActive: true }).select('_id email name') as Promise<IUserDocument[]>,
+        this.qFindMany(and(eq(users.role, 'ADMIN'), eq(users.isActive, true))!) as Promise<IUserDocument[]>,
       ),
 
     findActiveAdminEmails: (): Promise<string[]> =>
       this.exec('findActiveAdminEmails', async () => {
-        const admins = await UserModel.find({ role: 'ADMIN', isActive: true }).select('email');
-        return admins.map((a) => a.email).filter(Boolean);
+        const rows = await this.db
+          .select({ email: users.email })
+          .from(users)
+          .where(and(eq(users.role, 'ADMIN'), eq(users.isActive, true)));
+        return rows.map((r) => r.email).filter(Boolean);
       }),
 
     findActiveStaffEmails: (): Promise<string[]> =>
       this.exec('findActiveStaffEmails', async () => {
-        const staff = await UserModel.find({ isActive: true }).select('email');
-        return staff.map((u) => u.email).filter(Boolean);
+        const rows = await this.db
+          .select({ email: users.email })
+          .from(users)
+          .where(eq(users.isActive, true));
+        return rows.map((r) => r.email).filter(Boolean);
       }),
 
     countActiveStaff: (): Promise<number> =>
-      this.exec('countActiveStaff', () => this.qCount({ role: 'STAFF', isActive: true })),
+      this.exec('countActiveStaff', () =>
+        this.qCount(and(eq(users.role, 'STAFF'), eq(users.isActive, true))!),
+      ),
 
     create: (data: Partial<IUser>): Promise<IUserDocument> =>
-      this.exec('create', async () => (await UserModel.create(data as IUser)) as IUserDocument),
+      this.exec('create', async () => {
+        const values = await this.withHashedPassword(data);
+        return this.qInsert(values) as Promise<IUserDocument>;
+      }),
 
     deleteById: (id: string): Promise<IUserDocument | null> =>
-      this.exec('deleteById', () => this.qDeleteById(id)),
+      this.exec('deleteById', () => this.qDeleteById(id) as Promise<IUserDocument | null>),
 
     /** Generic partial update (profile edits, approval flows…). */
     updateById: (
       id: string,
       update: Record<string, unknown>,
-      options: FindUserOptions = {},
+      _options: FindUserOptions = {},
     ): Promise<IUserDocument | null> =>
       this.exec('updateById', async () => {
-        let query = UserModel.findByIdAndUpdate(id, update, { new: true });
-        for (const path of options.populate ?? []) {
-          query = query.populate(path);
-        }
-        return query as Promise<IUserDocument | null>;
+        const values = await this.withHashedPassword(update as { password?: string | null });
+        return this.qUpdateById(id, values) as Promise<IUserDocument | null>;
       }),
 
     /** Admin directory listing, optionally filtered by active state. */
     listUsers: (filters: { isActive?: boolean } = {}): Promise<IUserDocument[]> =>
       this.exec('listUsers', async () => {
-        const filter: Record<string, unknown> = {};
-        if (filters.isActive !== undefined) filter.isActive = filters.isActive;
-        return UserModel.find(filter)
-          .populate('assignedOffice')
-          .sort({ name: 1 }) as Promise<IUserDocument[]>;
+        const where = filters.isActive !== undefined ? eq(users.isActive, filters.isActive) : undefined;
+        const base = this.db.select().from(users).orderBy(asc(users.name));
+        const rows = where ? await base.where(where) : await base;
+        return this.withIds(rows) as IUserDocument[];
       }),
 
     listUsersPaginated: (
       pagination: { page?: number; limit?: number; search?: string } = {},
-      isActive?: boolean
-    ) => this.exec('listUsersPaginated', async () => {
-      const page = Math.max(1, pagination.page || 1);
-      const limit = Math.max(1, pagination.limit || 10);
-      const skip = (page - 1) * limit;
+      isActive?: boolean,
+    ) =>
+      this.exec('listUsersPaginated', async () => {
+        const page = Math.max(1, pagination.page || 1);
+        const limit = Math.max(1, pagination.limit || 10);
+        const offset = (page - 1) * limit;
 
-      const filter: Record<string, unknown> = {};
-      if (isActive !== undefined) filter.isActive = isActive;
-      
-      if (pagination.search) {
-        const regex = new RegExp(pagination.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-        filter.$or = [
-          { name: regex },
-          { email: regex },
-          { employeeId: regex }
-        ];
-      }
-
-      const [totalCount, data] = await Promise.all([
-        UserModel.countDocuments(filter),
-        UserModel.find(filter)
-          // Notice we don't .populate('assignedOffice') here, relying on DataLoader instead!
-          .sort({ name: 1 })
-          .skip(skip)
-          .limit(limit) as Promise<IUserDocument[]>
-      ]);
-
-      const totalPages = Math.ceil(totalCount / limit);
-
-      return {
-        data,
-        pageInfo: {
-          totalCount,
-          currentPage: page,
-          totalPages,
-          hasNextPage: page < totalPages,
+        const conditions = [];
+        if (isActive !== undefined) conditions.push(eq(users.isActive, isActive));
+        if (pagination.search) {
+          const term = `%${pagination.search}%`;
+          conditions.push(
+            or(ilike(users.name, term), ilike(users.email, term), ilike(users.employeeId, term))!,
+          );
         }
-      };
-    }),
+        const where = conditions.length ? and(...conditions) : undefined;
+
+        const countBase = this.db.select({ count: sql<number>`count(*)::int` }).from(users);
+        const dataBase = this.db.select().from(users).orderBy(asc(users.name)).limit(limit).offset(offset);
+
+        const [countRows, data] = await Promise.all([
+          where ? countBase.where(where) : countBase,
+          where ? dataBase.where(where) : dataBase,
+        ]);
+
+        const totalCount = countRows[0]?.count ?? 0;
+        const totalPages = Math.ceil(totalCount / limit);
+
+        return {
+          data: this.withIds(data) as IUserDocument[],
+          pageInfo: {
+            totalCount,
+            currentPage: page,
+            totalPages,
+            hasNextPage: page < totalPages,
+          },
+        };
+      }),
 
     /** Self-signups waiting for an admin decision. */
     listPendingSignups: (): Promise<IUserDocument[]> =>
-      this.exec('listPendingSignups', () =>
-        UserModel.find({ approvalStatus: 'PENDING', role: 'STAFF' })
-          .populate('assignedOffice')
-          .sort({ createdAt: 1 }) as Promise<IUserDocument[]>,
-      ),
+      this.exec('listPendingSignups', async () => {
+        const rows = await this.db
+          .select()
+          .from(users)
+          .where(and(eq(users.approvalStatus, 'PENDING'), eq(users.role, 'STAFF')))
+          .orderBy(asc(users.createdAt));
+        return this.withIds(rows) as IUserDocument[];
+      }),
 
     /** Persist the UI theme so it follows the user across devices. */
     setThemePreference: (userId: string, mode: string): Promise<IUserDocument | null> =>
       this.exec('setThemePreference', () =>
-        UserModel.findByIdAndUpdate(userId, { themePreference: mode }, { new: true }),
+        this.qUpdateById(userId, { themePreference: mode }) as Promise<IUserDocument | null>,
       ),
 
     /** Leave bookkeeping – write an exact floored balance for one leave type. */
-    setLeaveBalance: (
-      userId: string,
-      typeKey: string,
-      value: number,
-    ): Promise<IUserDocument | null> =>
-      this.exec('setLeaveBalance', () =>
-        UserModel.findByIdAndUpdate(
-          userId,
-          { $set: { [`leaveBalances.${typeKey}`]: Math.max(0, Math.floor(value)) } },
-          { new: true },
-        ),
-      ),
+    setLeaveBalance: (userId: string, typeKey: string, value: number): Promise<IUserDocument | null> =>
+      this.exec('setLeaveBalance', async () => {
+        const floored = Math.max(0, Math.floor(value));
+        const rows = await this.db
+          .update(users)
+          .set({
+            leaveBalances: sql`jsonb_set(${users.leaveBalances}, ${`{${typeKey}}`}, ${sql.raw(String(floored))}::text::jsonb, true)`,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId))
+          .returning();
+        return this.withId(rows[0] ?? null) as IUserDocument | null;
+      }),
 
     /**
      * ⚡ ATOMIC guard-decrement (race-proof):
-     * Succeeds ONLY if the stored balance is still >= days at the moment of
-     * the update. Two concurrent approvals can never both pass this.
+     * Succeeds ONLY if the stored balance is still >= days at the moment of the
+     * update. Two concurrent approvals can never both pass this.
      */
-    deductLeaveBalanceIfAvailable: (
-      userId: string,
-      typeKey: string,
-      days: number,
-    ): Promise<boolean> =>
+    deductLeaveBalanceIfAvailable: (userId: string, typeKey: string, days: number): Promise<boolean> =>
       this.exec('deductLeaveBalanceIfAvailable', async () => {
-        const res = await UserModel.updateOne(
-          { _id: userId, [`leaveBalances.${typeKey}`]: { $gte: days } },
-          { $inc: { [`leaveBalances.${typeKey}`]: -days } },
-        );
-        return res.modifiedCount > 0;
+        const rows = await this.db
+          .update(users)
+          .set({
+            leaveBalances: sql`jsonb_set(${users.leaveBalances}, ${`{${typeKey}}`}, ((${users.leaveBalances} ->> ${typeKey})::numeric - ${days})::text::jsonb, true)`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(users.id, userId),
+              sql`(${users.leaveBalances} ->> ${typeKey})::numeric >= ${days}`,
+            ),
+          )
+          .returning({ id: users.id });
+        return rows.length > 0;
       }),
 
     /** ⚡ ATOMIC increment/refund (no read-modify-write window). */
-    addLeaveBalance: (
-      userId: string,
-      typeKey: string,
-      days: number,
-    ): Promise<unknown> =>
+    addLeaveBalance: (userId: string, typeKey: string, days: number): Promise<unknown> =>
       this.exec('addLeaveBalance', () =>
-        UserModel.updateOne(
-          { _id: userId },
-          { $inc: { [`leaveBalances.${typeKey}`]: days } },
-        ),
+        this.db
+          .update(users)
+          .set({
+            leaveBalances: sql`jsonb_set(${users.leaveBalances}, ${`{${typeKey}}`}, ((${users.leaveBalances} ->> ${typeKey})::numeric + ${days})::text::jsonb, true)`,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId)),
       ),
 
-    /** Accrual engine – run pre-built bulk operations. */
+    /**
+     * Accrual engine – interprets the same op shapes the leave service builds:
+     *   { updateMany: { filter: { isActive: true },
+     *                   update: { $inc | $set: { 'leaveBalances.<key>': n } } } }
+     * Each op maps to one bulk jsonb UPDATE across all active users.
+     */
     bulkWrite: (ops: Array<Record<string, unknown>>): Promise<unknown> =>
-      this.exec('bulkWrite', () => UserModel.bulkWrite(ops as never)),
-  };
+      this.exec('bulkWrite', async () => {
+        for (const op of ops) {
+          const updateMany = (op as { updateMany?: { filter?: Record<string, unknown>; update?: Record<string, unknown> } }).updateMany;
+          if (!updateMany?.update) continue;
 
-  /** Small helper so every catalog entry funnels through the shared executor. */
-  private findOneExec(filter: FilterQuery<IUser>): Promise<IUserDocument | null> {
-    return this.exec('findOne', () => UserModel.findOne(filter) as Promise<IUserDocument | null>);
-  }
+          const activeOnly = updateMany.filter?.isActive === true;
+          const whereClause = activeOnly ? eq(users.isActive, true) : undefined;
+
+          const inc = (updateMany.update.$inc ?? {}) as Record<string, number>;
+          const set = (updateMany.update.$set ?? {}) as Record<string, number>;
+
+          for (const [path, n] of Object.entries(inc)) {
+            const key = path.replace('leaveBalances.', '');
+            const q = this.db.update(users).set({
+              leaveBalances: sql`jsonb_set(${users.leaveBalances}, ${`{${key}}`}, ((${users.leaveBalances} ->> ${key})::numeric + ${n})::text::jsonb, true)`,
+              updatedAt: new Date(),
+            });
+            // eslint-disable-next-line no-await-in-loop
+            await (whereClause ? q.where(whereClause) : q);
+          }
+          for (const [path, n] of Object.entries(set)) {
+            const key = path.replace('leaveBalances.', '');
+            const q = this.db.update(users).set({
+              leaveBalances: sql`jsonb_set(${users.leaveBalances}, ${`{${key}}`}, ${sql.raw(String(Math.floor(n)))}::text::jsonb, true)`,
+              updatedAt: new Date(),
+            });
+            // eslint-disable-next-line no-await-in-loop
+            await (whereClause ? q.where(whereClause) : q);
+          }
+        }
+        return { ok: true };
+      }),
+  };
 }
 
 export const userRepository = UserRepository.getInstance();

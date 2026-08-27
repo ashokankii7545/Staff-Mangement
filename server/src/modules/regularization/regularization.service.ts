@@ -58,15 +58,17 @@ class RegularizationService {
       );
     }
 
-    const reg = await regularizationRepository.queries.create({
-      user: actorId as never,
+    const createdReg = await regularizationRepository.queries.create({
+      user: actorId,
       date: input.date,
       checkInTime: input.checkInTime,
       checkOutTime: input.checkOutTime,
       reason: input.reason,
       status: 'PENDING',
     });
-    await reg.populate('user');
+    const reg =
+      (await regularizationRepository.queries.findByIdPopulatedUser(String(createdReg._id))) ??
+      createdReg;
     pubsub.publish(PUBSUB_CHANNELS.REGULARIZATION_ADDED, { regularizationAdded: reg });
 
     const staffName = (reg.user as unknown as { name: string }).name;
@@ -143,10 +145,12 @@ class RegularizationService {
   }): Promise<RegularizationDocument> {
     const { reg, status, adminFeedback, approverId } = args;
 
-    reg.status = status as RegularizationDocument['status'];
-    reg.adminFeedback = adminFeedback ?? undefined;
-    reg.approvedBy = (approverId || null) as never;
-    await reg.save();
+    const updatedReg =
+      (await regularizationRepository.queries.updateById(String(reg._id), {
+        status: status as RegularizationDocument['status'],
+        adminFeedback: adminFeedback ?? undefined,
+        approvedBy: approverId || null,
+      })) ?? reg;
 
     // If approved, automatically regularize punch records in Attendance.
     if (status === 'APPROVED') {
@@ -172,50 +176,38 @@ class RegularizationService {
         createdAt: backdatedCreatedAt,
       });
 
-      // 1. Clock In record
-      let clockIn = await attendanceRepository.queries.findByUserDateType(userId, date, 'CLOCK_IN');
-      if (!clockIn) {
-        clockIn = await attendanceRepository.queries.create({
-          ...buildPunch(checkInDateTime),
-          user: userId as never,
-          date,
-          type: 'CLOCK_IN',
-        });
-      } else {
-        clockIn.createdAt = checkInDateTime;
-        clockIn.approvalStatus = 'APPROVED';
-        clockIn.adminComments = adminFeedback ?? undefined;
-      }
-      await clockIn.save();
+      const upsertPunch = async (type: 'CLOCK_IN' | 'CLOCK_OUT', when: Date) => {
+        const existing = await attendanceRepository.queries.findByUserDateType(userId, date, type);
+        if (!existing) {
+          await attendanceRepository.queries.create({
+            ...buildPunch(when),
+            user: userId,
+            date,
+            type,
+          });
+        } else {
+          await attendanceRepository.queries.updateById(String(existing._id), {
+            createdAt: when,
+            approvalStatus: 'APPROVED',
+            adminComments: adminFeedback ?? undefined,
+          });
+        }
+      };
 
-      // 2. Clock Out record
-      let clockOut = await attendanceRepository.queries.findByUserDateType(userId, date, 'CLOCK_OUT');
-      if (!clockOut) {
-        clockOut = await attendanceRepository.queries.create({
-          ...buildPunch(checkOutDateTime),
-          user: userId as never,
-          date,
-          type: 'CLOCK_OUT',
-        });
-      } else {
-        clockOut.createdAt = checkOutDateTime;
-        clockOut.approvalStatus = 'APPROVED';
-        clockOut.adminComments = adminFeedback ?? undefined;
-      }
-      await clockOut.save();
+      await upsertPunch('CLOCK_IN', checkInDateTime);
+      await upsertPunch('CLOCK_OUT', checkOutDateTime);
     }
 
-    const populated = (await reg.populate(['user', 'approvedBy'])) as RegularizationDocument;
-    pubsub.publish(PUBSUB_CHANNELS.REGULARIZATION_UPDATED, { regularizationUpdated: populated });
+    pubsub.publish(PUBSUB_CHANNELS.REGULARIZATION_UPDATED, { regularizationUpdated: updatedReg });
 
     // Close the original request notification in every admin's inbox.
     await notificationRepository.queries.closeMetaNotifications(
       'REGULARIZATION_REQUEST',
       'regularizationId',
-      String(reg._id),
+      String(updatedReg._id),
     );
 
-    return populated;
+    return updatedReg;
   }
 
   /**

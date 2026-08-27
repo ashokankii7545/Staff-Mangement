@@ -27,19 +27,15 @@ class SettingsService {
     input: Record<string, unknown>,
     adminName: string,
   ): Promise<SettingsDocument> {
-    let settings = await settingsRepository.queries.findFirst();
-    if (!settings) {
-      settings = await settingsRepository.queries.getOrCreate();
-    }
-
     if (typeof input.appLogoBase64 === 'string') {
       const logoUrl = await saveBase64Image(input.appLogoBase64, `app-logo-${Date.now()}`);
       input.appLogo = logoUrl;
       delete input.appLogoBase64;
     }
 
-    Object.assign(settings, input);
-    await settings.save();
+    const current = await settingsRepository.queries.getOrCreate();
+    const settings =
+      (await settingsRepository.queries.updateById(String(current._id), input as never)) ?? current;
     // Org-level change – let every admin know something was touched.
     void import('../../shared/mail/mail.service.js').then(({ mailService }) =>
       mailService.sendSettingsChangeEmail(adminName),

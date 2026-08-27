@@ -4,6 +4,12 @@ export const authTypes = /* GraphQL */ `
     message: String!
   }
 
+  """Generic success/message envelope for simple mutations (OTP verify/resend)."""
+  type DefaultResponse {
+    success: Boolean!
+    message: String!
+  }
+
   type AuthPayload {
     token: String!
     user: User!

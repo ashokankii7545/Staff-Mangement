@@ -12,7 +12,13 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@apollo/server": "^4.11.0",
@@ -24,6 +30,7 @@
     "dataloader": "^2.2.3",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.2",
     "express": "^4.21.0",
     "express-rate-limit": "^8.6.2",
     "geolib": "^3.3.4",
@@ -34,8 +41,8 @@
     "graphql-ws": "^6.2.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.8.0",
     "nodemailer": "^9.0.5",
+    "postgres": "^3.4.9",
     "ws": "^8.21.3"
   },
   "devDependencies": {
@@ -46,7 +53,9 @@
     "@types/node": "^22.10.2",
     "@types/nodemailer": "^6.4.17",
     "@types/ws": "^8.5.13",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
   }
 }

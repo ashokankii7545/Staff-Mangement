@@ -14,7 +14,7 @@ export async function getFaceEmbeddingFromBase64(base64Image: string): Promise<n
     const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
     const blob = new Blob([buffer], { type: 'image/jpeg' });
-    
+
     const formData = new FormData();
     formData.append('file', blob, 'image.jpg');
 
@@ -41,17 +41,17 @@ export async function getFaceEmbeddingFromBase64(base64Image: string): Promise<n
  */
 export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   if (!vecA || !vecB || vecA.length !== vecB.length || vecA.length === 0) return 0;
-  
+
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;
-  
+
   for (let i = 0; i < vecA.length; i++) {
     dotProduct += vecA[i] * vecB[i];
     normA += vecA[i] * vecA[i];
     normB += vecB[i] * vecB[i];
   }
-  
+
   if (normA === 0 || normB === 0) return 0;
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
