@@ -512,7 +512,12 @@ class AuthService {
   public async requestPasswordReset(email: string): Promise<boolean> {
     logger.info(`Password reset requested for email: ${email}`);
     const user = await userRepository.queries.findByEmail(email);
-    if (!user) return true; // prevent enumeration
+    if (!user) {
+      // Anti-enumeration: still return success to the client, but log so an
+      // admin can tell a legit "no email arrived" from a wrong/unknown address.
+      logger.warn(`Password reset: no account found for "${email}" – no email sent.`);
+      return true;
+    }
     
     const resetToken = crypto.randomUUID();
     await userRepository.queries.updateById(String(user._id), {
