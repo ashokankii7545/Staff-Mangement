@@ -124,6 +124,7 @@ export const UPDATE_SETTINGS = gql`
     updateSettings(input: $input) {
       id
       organizationName
+      appLogo
       officeLatitude
       officeLongitude
       officeName

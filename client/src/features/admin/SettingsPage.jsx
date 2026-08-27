@@ -18,7 +18,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import BoltIcon from '@mui/icons-material/Bolt';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
-import { GET_SETTINGS } from '../../graphql/queries';
+import { GET_SETTINGS, GET_PUBLIC_CONFIG } from '../../graphql/queries';
 import { UPDATE_SETTINGS } from '../../graphql/mutations';
 import { PageHeader, AppButton, useNotification } from '../../shared/ui';
 import Box from '@mui/material/Box';
@@ -69,6 +69,11 @@ const SettingsPage = () => {
   const [updateSettings, { loading: saving }] = useAppMutation(UPDATE_SETTINGS, {
     successMessage: 'Settings saved successfully',
     onError: (err) => notify.error(err.message),
+    // Refresh the public branding config (org name + logo) that the sidebar and
+    // login page read, so the new value is in the cache immediately and does not
+    // briefly flip back to the previously-cached value.
+    refetchQueries: [{ query: GET_PUBLIC_CONFIG }],
+    awaitRefetchQueries: true,
     onCompleted: () => {
       // keep local state authoritative after save
       setHydrated(true);

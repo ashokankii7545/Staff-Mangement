@@ -65,8 +65,8 @@ const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) =>
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const { data: configData } = useQuery(GET_PUBLIC_CONFIG, { fetchPolicy: 'cache-first' });
-  const appConfig = configData?.publicConfig || { organizationName: 'German Homeopathy', appLogo: null };
+  const { data: configData } = useQuery(GET_PUBLIC_CONFIG, { fetchPolicy: 'cache-and-network' });
+  const appConfig = configData?.publicConfig || { organizationName: '', appLogo: null };
 
   const isDark = theme.palette.mode === 'dark';
   const [expanded, setExpanded] = useState({

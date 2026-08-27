@@ -76,8 +76,8 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const notify = useNotification();
   const apolloClient = useApolloClient();
-  const { data: configData } = useQuery(GET_PUBLIC_CONFIG, { fetchPolicy: 'network-only' });
-  const appConfig = configData?.publicConfig || { organizationName: 'German Homeopathy', appLogo: null };
+  const { data: configData } = useQuery(GET_PUBLIC_CONFIG, { fetchPolicy: 'cache-and-network' });
+  const appConfig = configData?.publicConfig || { organizationName: '', appLogo: null };
 
   const [baselinePic, setBaselinePic] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
