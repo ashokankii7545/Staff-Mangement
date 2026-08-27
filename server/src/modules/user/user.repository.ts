@@ -226,6 +226,23 @@ export class UserRepository extends BaseRepository<typeof users> {
         return this.withIds(rows) as IUserDocument[];
       }),
 
+    /** Store the SFace 128-d enrollment embedding (pgvector) for a user. */
+    setFaceVector: (userId: string, embedding: number[]): Promise<void> =>
+      this.exec('setFaceVector', async () => {
+        await this.db.update(users).set({ faceVector: embedding, updatedAt: new Date() }).where(eq(users.id, userId));
+      }),
+
+    /** Fetch just a user's enrolled face embedding (null when not enrolled). */
+    getFaceVector: (userId: string): Promise<number[] | null> =>
+      this.exec('getFaceVector', async () => {
+        const rows = await this.db
+          .select({ faceVector: users.faceVector })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+        return rows[0]?.faceVector ?? null;
+      }),
+
     /** Persist the UI theme so it follows the user across devices. */
     setThemePreference: (userId: string, mode: string): Promise<IUserDocument | null> =>
       this.exec('setThemePreference', () =>

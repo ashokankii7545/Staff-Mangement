@@ -80,5 +80,7 @@ export const attendanceTypes = /* GraphQL */ `
     webRTCIPs: [String!]
     faceMatched: Boolean
     faceMatchScore: Float
+    """Burst of base64 frames for server-side head-turn liveness."""
+    livenessFrames: [String!]
   }
 `;

@@ -15,6 +15,8 @@
     "seed": "tsx src/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:pgvector": "node scripts/enable-pgvector.mjs",
+    "face:backfill": "node scripts/backfill-face-vectors.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",

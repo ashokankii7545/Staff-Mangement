@@ -22,6 +22,8 @@ import { userRepository } from '../user/user.repository.js';
 import { officeRepository } from '../office/office.repository.js';
 import type { AttendanceDocument, IAttendance } from './attendance.model.js';
 import { mailService } from '../../shared/mail/mail.service.js';
+import { getFaceEmbeddingFromBase64, cosineSimilarity, checkLiveness, FACE_MATCH_THRESHOLD } from '../../shared/utils/face.util.js';
+import { env } from '../../config/env.js';
 
 export interface ClockInputShape {
   selfieBase64: string;
@@ -33,6 +35,7 @@ export interface ClockInputShape {
   webRTCIPs?: string[] | null;
   faceMatched?: boolean | null;
   faceMatchScore?: number | null;
+  livenessFrames?: string[] | null;
 }
 
 export interface ClockResult {
@@ -65,6 +68,35 @@ class AttendanceService {
    * Security layers: GPS accuracy → VPN API → WebRTC mismatch → timezone
    * mismatch → geofence rotation (temp duty wins over permanent office).
    */
+  /**
+   * Server-side face verification for a punch selfie against the user's enrolled
+   * SFace embedding. Returns null (→ caller falls back to client-provided values)
+   * when the face-service is not configured or the user has no enrollment.
+   * Never throws – a service/network hiccup must not block a punch.
+   */
+  private async verifyPunchFace(
+    userId: string,
+    selfieBase64: string,
+  ): Promise<{ match: boolean; similarity: number } | null> {
+    if (!env.faceServiceUrl) return null; // feature off → keep client values
+    try {
+      const enrolled = await userRepository.queries.getFaceVector(userId);
+      if (!enrolled || enrolled.length === 0) return null; // not enrolled yet
+
+      const live = await getFaceEmbeddingFromBase64(selfieBase64);
+      if (!live) {
+        // Face service reachable but no face in the selfie → explicit mismatch.
+        return { match: false, similarity: 0 };
+      }
+
+      const similarity = cosineSimilarity(live, enrolled);
+      return { match: similarity >= FACE_MATCH_THRESHOLD, similarity };
+    } catch (error) {
+      logger.error('Server-side face verification failed', error);
+      return null; // fail-open to client-provided values
+    }
+  }
+
   public async processPunch(args: {
     userId: string;
     type: 'CLOCK_IN' | 'CLOCK_OUT';
@@ -249,10 +281,27 @@ class AttendanceService {
     const selfieUrl = await saveBase64Image(input.selfieBase64, filename);
 
     // ── APPROVAL POLICY (modern HRMS behaviour) ──
+    // ── Server-side face verification (SFace via face-service) ──
+    // Authoritative when the face-service is configured AND the user is enrolled.
+    // Falls back to the client-provided values so nothing breaks before deploy.
+    let faceMatched: boolean | null | undefined = input.faceMatched;
+    let faceMatchScore: number | null | undefined = input.faceMatchScore;
+    const verify = await this.verifyPunchFace(userId, input.selfieBase64);
+    if (verify) {
+      faceMatched = verify.match;
+      faceMatchScore = verify.similarity;
+    }
+
+    // ── Server-side active liveness (head-turn via face-service) ──
+    // null → service off or no frames sent → skip (don't block). false → the
+    // burst did not show a live head-turn → flag for review.
+    const liveness = await checkLiveness(input.livenessFrames ?? []);
+    const livenessFailed = liveness !== null && liveness.live === false;
+
     // A CLEAN punch (inside geofence + face verified + no flag) is auto-APPROVED
     // so admins only review genuine anomalies. Anything suspicious stays PENDING.
-    const hasIdentityFlag = vpnDetected || input.faceMatched === false;
-    const faceVerified = input.faceMatched === true;
+    const hasIdentityFlag = vpnDetected || faceMatched === false || livenessFailed;
+    const faceVerified = faceMatched === true;
     const autoApproved =
       !hasIdentityFlag && faceVerified && settings?.autoApproveAttendance !== false;
 
@@ -285,15 +334,17 @@ class AttendanceService {
           },
           browserTimezone: input.browserTimezone || '',
           date: today,
-          faceMatched: typeof input.faceMatched === 'boolean' ? input.faceMatched : undefined,
-          faceMatchScore: typeof input.faceMatchScore === 'number' ? input.faceMatchScore : undefined,
+          faceMatched: typeof faceMatched === 'boolean' ? faceMatched : undefined,
+          faceMatchScore: typeof faceMatchScore === 'number' ? faceMatchScore : undefined,
           approvalStatus: autoApproved ? 'APPROVED' : 'PENDING',
           // Flagged punches carry the reason so the reviewer sees WHY instantly.
           ...(hasIdentityFlag
             ? {
                 adminComments: vpnDetected
                   ? 'Auto-flagged: possible VPN/proxy or device mismatch'
-                  : 'Auto-flagged: face did not match registered profile photo',
+                  : faceMatched === false
+                    ? 'Auto-flagged: face did not match registered profile photo'
+                    : 'Auto-flagged: liveness check failed (no head movement detected)',
               }
             : {}),
         });
@@ -311,7 +362,7 @@ class AttendanceService {
 
     attendance = (await attendanceRepository.queries.findByIdPopulated(String(attendance._id))) ?? attendance;
 
-    if (vpnDetected || input.faceMatched === false) {
+    if (vpnDetected || faceMatched === false || livenessFailed) {
       const staffName = (attendance.user as unknown as { name?: string })?.name || 'A staff member';
       await notificationService.notifyAdmins({
         type: 'ATTENDANCE_FLAGGED',
