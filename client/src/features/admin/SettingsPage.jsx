@@ -58,10 +58,20 @@ const SettingsPage = () => {
   const [form, setForm] = useState(DEFAULTS);
   const [hydrated, setHydrated] = useState(false);
 
-  // Hydrate the form once server settings arrive (never overwrite user edits)
+  // Hydrate the form once server settings arrive (never overwrite user edits).
+  // Merge defensively so nested objects / arrays are never left undefined even
+  // if a partial settings object comes back from the cache (e.g. after a
+  // branding-only mutation that doesn't return every field).
   useEffect(() => {
     if (data?.settings && !hydrated) {
-      setForm({ ...DEFAULTS, ...data.settings });
+      const s = data.settings;
+      setForm({
+        ...DEFAULTS,
+        ...s,
+        workingDays: Array.isArray(s.workingDays) ? s.workingDays : DEFAULTS.workingDays,
+        emailNotifications: { ...DEFAULTS.emailNotifications, ...(s.emailNotifications ?? {}) },
+        leavePolicy: { ...DEFAULTS.leavePolicy, ...(s.leavePolicy ?? {}) },
+      });
       setHydrated(true);
     }
   }, [data?.settings, hydrated]);

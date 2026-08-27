@@ -133,8 +133,21 @@ export const UPDATE_SETTINGS = gql`
       shiftEndTime
       lateThresholdMinutes
       workingDays
+      vpnStrictMode
+      autoApproveAttendance
+      regularizationAutoApproveDays
       mailFromName
       mailFromAddress
+      emailNotifications {
+        userUpdates
+        broadcasts
+        adminAlerts
+      }
+      leavePolicy {
+        casualPerMonth
+        sickAnnual
+        earnedAnnual
+      }
     }
   }
 `;
