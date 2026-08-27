@@ -5,6 +5,9 @@ import type { ContextValue } from '../../graphql/context.js';
 
 export const settingsResolvers = {
   Query: {
+    publicConfig: async () => {
+      return settingsService.getOrCreate();
+    },
     settings: async (_parent: unknown, _args: Record<string, never>, ctx: ContextValue) => {
       requireAuth(ctx.user);
       return settingsService.getOrCreate();

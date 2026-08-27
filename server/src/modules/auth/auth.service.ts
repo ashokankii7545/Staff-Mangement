@@ -13,6 +13,7 @@ import {
 } from '../../shared/errors/app.errors.js';
 import { checkRateLimit } from '../../shared/security/rate-limiter.util.js';
 import { saveBase64Image } from '../../shared/utils/file-upload.util.js';
+import { getFaceEmbeddingFromBase64 } from '../../shared/utils/face.util.js';
 import { mailService } from '../../shared/mail/mail.service.js';
 import { notificationService } from '../notification/notification.service.js';
 import { userRepository } from '../user/user.repository.js';
@@ -33,8 +34,7 @@ export interface SignUpInputShape {
   avatarBase64?: string | null;
 }
 
-const APPROVAL_PENDING_MSG =
-  'Your account is awaiting admin approval. You will be able to log in once an administrator approves your request.';
+const APPROVAL_PENDING_MSG = 'Sign-up requests stay PENDING until an administrator approves them. Login unlocks right after approval.';
 const APPROVAL_REJECTED_MSG = 'Your access request was rejected by an administrator.';
 
 /** Throwaway inbox providers commonly used to farm PENDING approval spam */
@@ -138,8 +138,15 @@ class AuthService {
       if (existing) {
         if (existing.approvalStatus === 'REJECTED') {
           await userRepository.queries.deleteById(String(existing._id));
+        } else if (existing.approvalStatus === 'PENDING') {
+          if (!existing.emailVerified) {
+            // Delete unverified junk account so they can sign up fresh
+            await userRepository.queries.deleteById(String(existing._id));
+          } else {
+            throw new ValidationError('Email is already registered and is currently PENDING admin approval.');
+          }
         } else {
-          throw new ValidationError(`Email "${args.email}" is already registered.`);
+          throw new ValidationError('Email is already registered and APPROVED. Please log in.');
         }
       }
     }
@@ -410,7 +417,7 @@ class AuthService {
 
     return {
       success: true,
-      message: 'Email verified successfully! Admins have been notified.',
+      message: 'Email verified! Sign-up requests stay PENDING until an administrator approves them. Login unlocks right after approval.',
     };
   }
 

@@ -253,11 +253,21 @@ export const GET_OFFICES = gql`
   }
 `;
 
+export const GET_PUBLIC_CONFIG = gql`
+  query GetPublicConfig {
+    publicConfig {
+      organizationName
+      appLogo
+    }
+  }
+`;
+
 export const GET_SETTINGS = gql`
   query GetSettings {
     settings {
       id
       organizationName
+      appLogo
       officeLatitude
       officeLongitude
       officeName

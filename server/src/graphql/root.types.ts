@@ -6,7 +6,13 @@
  * ────────────────────────────────────────────────────────────────────────────
  */
 export const rootTypes = /* GraphQL */ `
+  type DefaultResponse {
+    success: Boolean!
+    message: String!
+  }
+
   type Query {
+    publicConfig: PublicConfig!
     me: User
     users(pagination: PaginationInput, isActive: Boolean): PaginatedUsers!
     user(id: ID!): User

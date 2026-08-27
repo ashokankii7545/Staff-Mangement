@@ -2,7 +2,8 @@ import { useAppMutation } from '../../shared/hooks';
 import { useState } from 'react';
 
 import { useNavigate } from 'react-router-dom';
-import { gql, useApolloClient } from '@apollo/client';
+import { gql, useApolloClient, useQuery } from '@apollo/client';
+import { GET_PUBLIC_CONFIG } from '../../graphql/queries';
 import { Button, TextField } from '@mui/material';
 import GenericDialog from '../../shared/ui/GenericDialog';
 import SelfieCapture from '../attendance/components/SelfieCapture';
@@ -32,7 +33,7 @@ import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import AdvancedLoader from '../../shared/ui/AdvancedLoader';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
+import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import BadgeIcon from '@mui/icons-material/Badge';
 import LockIcon from '@mui/icons-material/Lock';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
@@ -75,6 +76,9 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const notify = useNotification();
   const apolloClient = useApolloClient();
+  const { data: configData } = useQuery(GET_PUBLIC_CONFIG, { fetchPolicy: 'network-only' });
+  const appConfig = configData?.publicConfig || { organizationName: 'German Homeopathy', appLogo: null };
+
   const [baselinePic, setBaselinePic] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [loginAvatar, setLoginAvatar] = useState(null);
@@ -135,7 +139,6 @@ const LoginPage = () => {
   const [signupMutation, { loading: signupLoading }] = useAppMutation(SIGNUP, {
     onCompleted: (data) => {
       setVerifyEmailFlow(true);
-      setInfo(data.signup.message);
     },
     onError: (err) => {
       setError(err.message || 'Signup failed. Please try again.');
@@ -310,14 +313,17 @@ const LoginPage = () => {
         </Tabs>
 
         <CardContent sx={{ p: { xs: 3, sm: 4 }, minHeight: 520, display: 'flex', flexDirection: 'column' }}>
-          <Stack alignItems="center" spacing={2} sx={{ mb: 3 }}>
-            <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-              <FingerprintIcon sx={{ fontSize: 32 }} />
-            </Avatar>
+          <Stack alignItems="center" spacing={1.5} sx={{ mb: 4 }}>
+            {appConfig.appLogo ? (
+              <Avatar src={appConfig.appLogo} alt={appConfig.organizationName} sx={{ width: 64, height: 64, bgcolor: 'transparent' }} />
+            ) : (
+              <Avatar sx={{ bgcolor: 'transparent', color: 'primary.main', width: 48, height: 48 }}>
+                <LocalHospitalIcon sx={{ fontSize: 40 }} />
+              </Avatar>
+            )}
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h5">AttendEase</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Staff Attendance System
+              <Typography variant="h5" sx={{ textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1.5, color: 'text.primary' }}>
+                {appConfig.organizationName}
               </Typography>
             </Box>
           </Stack>
@@ -386,12 +392,40 @@ const LoginPage = () => {
                 New here? Switch to <strong>Sign Up</strong> – an admin will approve your access.
               </Typography>
             </>
+          ) : verifyEmailFlow ? (
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary" mb={3}>
+                We have sent a 6-digit code to <strong>{pendingEmail}</strong>. Please enter it below to verify your account.
+              </Typography>
+              <TextField
+                fullWidth
+                label="6-Digit OTP"
+                value={otpValue}
+                onChange={(e) => setOtpValue(e.target.value)}
+                type="number"
+                sx={{ mb: 2 }}
+                disabled={verifyingOtp}
+              />
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleVerifyOtp}
+                disabled={verifyingOtp || otpValue.length < 6}
+                sx={{ mb: 2 }}
+              >
+                {verifyingOtp ? 'Verifying...' : 'Verify Email'}
+              </Button>
+              <Button
+                fullWidth
+                variant="text"
+                onClick={handleResendOtp}
+                disabled={resendingOtp}
+              >
+                {resendingOtp ? 'Sending...' : 'Resend OTP'}
+              </Button>
+            </Box>
           ) : (
             <>
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Sign-up requests stay <strong>PENDING</strong> until an
-                administrator approves them. Login unlocks right after approval.
-              </Alert>
               <Box sx={{ mb: 3, textAlign: 'center' }}>
                   {!baselinePic ? (
                     <Button variant="outlined" color="primary" startIcon={<CameraAltIcon />} onClick={() => setCameraOpen(true)} fullWidth>
@@ -407,51 +441,16 @@ const LoginPage = () => {
                   <GenericDialog open={cameraOpen} onClose={() => setCameraOpen(false)} title="Capture Baseline Photo" maxWidth="xs">
                     <SelfieCapture onCapture={(pic) => { setBaselinePic(pic); setCameraOpen(false); }} isPunching={false} buttonText="Capture & Save" requireCenteredFace />
                   </GenericDialog>
-                  
-                  {verifyEmailFlow ? (
-                    <Box sx={{ mt: 2, textAlign: 'center' }}>
-                      <Typography variant="body2" color="text.secondary" mb={3}>
-                        We have sent a 6-digit code to <strong>{pendingEmail}</strong>. Please enter it below to verify your account.
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        label="6-Digit OTP"
-                        value={otpValue}
-                        onChange={(e) => setOtpValue(e.target.value)}
-                        type="number"
-                        sx={{ mb: 2 }}
-                        disabled={verifyingOtp}
-                      />
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        onClick={handleVerifyOtp}
-                        disabled={verifyingOtp || otpValue.length < 6}
-                        sx={{ mb: 2 }}
-                      >
-                        {verifyingOtp ? 'Verifying...' : 'Verify Email'}
-                      </Button>
-                      <Button
-                        fullWidth
-                        variant="text"
-                        onClick={handleResendOtp}
-                        disabled={resendingOtp}
-                      >
-                        {resendingOtp ? 'Sending...' : 'Resend OTP'}
-                      </Button>
-                    </Box>
-                  ) : (
-                    <GenericFormEngine
-                      schema={signupSchema}
-                      fields={signUpFields}
-                      initialValues={{}}
-                      onSubmit={onSignUp}
-                      submitLabel={signupLoading ? 'Submitting...' : 'Request Access'}
-                      resetLabel="Clear"
-                      validateOn="onSubmit"
-                      resetAfterSubmit={true}
-                    />
-                  )}
+                  <GenericFormEngine
+                    schema={signupSchema}
+                    fields={signUpFields}
+                    initialValues={{}}
+                    onSubmit={onSignUp}
+                    submitLabel={signupLoading ? 'Submitting...' : 'Request Access'}
+                    resetLabel="Clear"
+                    validateOn="onSubmit"
+                    resetAfterSubmit={true}
+                  />
               </>
             )}
         </CardContent>

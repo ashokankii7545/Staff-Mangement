@@ -160,7 +160,7 @@ class MailService {
       if (admins.length === 0) return;
 
       await this.sendTemplateEmail(admins.join(','), {
-        subject: `[AttendEase] ${args.title}`,
+        subject: `[German Homeopathy] ${args.title}`,
         heading: args.title,
         introText: args.message,
         pill: args.pill,
@@ -195,7 +195,7 @@ class MailService {
         introText: options.introText,
         rows,
         pill: options.pill,
-        cta: { text: options.buttonText || 'Open AttendEase', path: options.buttonPath || '/' },
+        cta: { text: options.buttonText || 'Open German Homeopathy', path: options.buttonPath || '/' },
       });
     } catch (error) {
       logger.error(`Failed to send update email to ${recipient?.email}`, error);
@@ -211,7 +211,7 @@ class MailService {
         await this.sendUserUpdateEmail(
           { email: admin.email, name: admin.name },
           {
-            subject: `[AttendEase] ${args.title}`,
+            subject: `[German Homeopathy] ${args.title}`,
             heading: args.title,
             lines: args.lines,
             buttonText: args.buttonText,
@@ -230,7 +230,7 @@ class MailService {
   public async sendSignupOTPEmail(email: string, name: string, otp: string): Promise<void> {
     try {
       await this.sendTemplateEmail(email, {
-        subject: '[AttendEase] Verify your email address',
+        subject: '[German Homeopathy] Verify your email address',
         heading: 'Email Verification',
         introText: `Hi ${name},\n\nYour 6-digit verification code is:\n\n**${otp}**\n\nThis code will expire in 10 minutes. If you did not request this, please ignore this email.`,
       });
@@ -242,7 +242,7 @@ class MailService {
   /** Password reset link mail – security flow, always template-branded. */
   public async sendPasswordResetEmail(email: string, resetToken: string): Promise<void> {
     await this.sendTemplateEmail(email, {
-      subject: 'Reset your password – AttendEase',
+      subject: 'Reset your password – German Homeopathy',
       heading: 'Password Reset Request',
       introText:
         'We received a request to reset the password for your account. Click the button below to choose a new one. This secure link expires in 1 hour.',
@@ -257,7 +257,7 @@ class MailService {
     recipient: MailRecipient & { employeeId?: string; role?: string },
   ): Promise<void> {
     await this.sendTemplateEmail(recipient.email ?? undefined, {
-      subject: 'Your AttendEase account has been approved',
+      subject: 'Your German Homeopathy account has been approved',
       heading: 'Welcome Aboard!',
       pill: { label: 'ACCOUNT APPROVED', tone: 'success' },
       introText:
@@ -272,7 +272,7 @@ class MailService {
 
   public async sendProfileUpdateEmail(recipient: MailRecipient): Promise<void> {
     await this.sendTemplateEmail(recipient.email ?? undefined, {
-      subject: 'Your AttendEase profile was updated',
+      subject: 'Your German Homeopathy profile was updated',
       heading: 'Profile Updated',
       introText:
         'Your profile information was recently updated by an administrator. Please log in to review your current shift timings and assigned site.',
@@ -292,7 +292,7 @@ class MailService {
         heading: subject,
         pill: { label: 'ANNOUNCEMENT', tone: 'info' },
         introText: message,
-        cta: { text: 'Open AttendEase', path: '/' },
+        cta: { text: 'Open German Homeopathy', path: '/' },
       });
     } catch (error) {
       logger.error('Failed to broadcast email', error);
@@ -414,8 +414,8 @@ class MailService {
   ): Promise<void> {
     await this.sendUserUpdateEmail(recipient, {
       subject: args.isActive
-        ? 'Your AttendEase account is active again'
-        : 'Your AttendEase account has been deactivated',
+        ? 'Your German Homeopathy account is active again'
+        : 'Your German Homeopathy account has been deactivated',
       heading: args.isActive ? 'Account Activated ✅' : 'Account Deactivated',
       introText: args.isActive
         ? 'Good news! Your account has been re-activated by the administrator. You can log in and mark attendance as usual.'
@@ -471,10 +471,10 @@ class MailService {
     options: { temporaryPassword?: string } = {},
   ): Promise<void> {
     await this.sendTemplateEmail(recipient.email ?? undefined, {
-      subject: 'Welcome to AttendEase – your account is ready',
+      subject: 'Welcome to German Homeopathy – your account is ready',
       heading: 'Welcome aboard!',
       pill: { label: 'ACCOUNT READY', tone: 'success' },
-      introText: 'An administrator has created your AttendEase account. Everything is set up and ready to go.',
+      introText: 'An administrator has created your German Homeopathy account. Everything is set up and ready to go.',
       rows: [
         ['Employee ID', `<strong>${recipient.employeeId}</strong>`],
         ['Role', String(recipient.role)],
@@ -490,7 +490,7 @@ class MailService {
   /** Self-signup rejected – tell the requester why. */
   public async sendSignupRejectionEmail(recipient: MailRecipient, note?: string | null): Promise<void> {
     await this.sendUserUpdateEmail(recipient, {
-      subject: 'Your AttendEase access request was not approved',
+      subject: 'Your German Homeopathy access request was not approved',
       heading: 'Access Request Rejected',
       introText: 'Unfortunately, your signup request was not approved by the administrator.',
       lines: note ? [`<strong>Note from admin:</strong> ${note}`] : [],

@@ -1,6 +1,7 @@
 import { ValidationError } from '../../shared/errors/app.errors.js';
 import { settingsRepository } from './settings.repository.js';
 import type { SettingsDocument } from './settings.model.js';
+import { saveBase64Image } from '../../shared/utils/file-upload.util.js';
 
 /**
  * SettingsService – SINGLETON for org-wide configuration.
@@ -30,6 +31,13 @@ class SettingsService {
     if (!settings) {
       settings = await settingsRepository.queries.getOrCreate();
     }
+
+    if (typeof input.appLogoBase64 === 'string') {
+      const logoUrl = await saveBase64Image(input.appLogoBase64, `app-logo-${Date.now()}`);
+      input.appLogo = logoUrl;
+      delete input.appLogoBase64;
+    }
+
     Object.assign(settings, input);
     await settings.save();
     // Org-level change – let every admin know something was touched.

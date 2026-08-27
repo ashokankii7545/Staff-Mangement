@@ -27,6 +27,7 @@ export interface AppEnv {
   readonly uploadDir: string;
   readonly googleClientId: string;
   readonly vpnApiKey: string;
+  readonly faceServiceUrl: string;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
   readonly smtp: {
     readonly host: string | null;
@@ -100,6 +101,7 @@ class EnvConfig {
       uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
       googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
       vpnApiKey: process.env.VPNAPI_KEY ?? '',
+      faceServiceUrl: process.env.FACE_SERVICE_URL ?? '',
       logLevel: parseLogLevel(process.env.LOG_LEVEL),
       smtp: Object.freeze({
         host: process.env.SMTP_HOST?.trim() || null,

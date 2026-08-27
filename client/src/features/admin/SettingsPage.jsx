@@ -126,11 +126,22 @@ const SettingsPage = () => {
       variables: {
         input: {
           organizationName: form.organizationName?.trim() || 'EdgeAttendance',
+          appLogoBase64: form.appLogoBase64 || undefined,
           mailFromName: form.mailFromName?.trim() || undefined,
           mailFromAddress: form.mailFromAddress?.trim() || '',
         },
       },
     });
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      set({ appLogoBase64: reader.result, appLogoPreview: reader.result });
+    };
+    reader.readAsDataURL(file);
   };
 
   const toggleDay = (day) => {
@@ -456,6 +467,16 @@ const SettingsPage = () => {
           </Alert>
 
           <Stack spacing={2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <Avatar 
+                  src={form.appLogoPreview || form.appLogo} 
+                  sx={{ width: 64, height: 64, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}
+                />
+                <Button component="label" variant="outlined" size="small">
+                  Upload App Logo
+                  <input type="file" hidden accept="image/*" onChange={handleLogoUpload} />
+                </Button>
+              </Box>
             <TextField
               label="Organization Name"
               placeholder="e.g. EdgeAttendance"

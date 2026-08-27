@@ -22,6 +22,7 @@ export interface IAccrualState {
 
 export interface ISettings {
   organizationName: string;
+  appLogo?: string;
   officeLatitude: number;
   officeLongitude: number;
   officeName: string;
@@ -47,6 +48,7 @@ export type SettingsDocument = mongoose.HydratedDocument<ISettings>;
 const settingsSchema = new Schema<ISettings>(
   {
     organizationName: { type: String, default: DEFAULTS.ORGANIZATION_NAME },
+    appLogo: { type: String, default: null },
     officeLatitude: { type: Number, default: 28.6139 },
     officeLongitude: { type: Number, default: 77.209 },
     officeName: { type: String, default: 'Head Office' },

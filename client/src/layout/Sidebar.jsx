@@ -16,13 +16,15 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Divider from '@mui/material/Divider';
 import React, { useState } from 'react';
+import { useQuery } from '@apollo/client';
+import { GET_PUBLIC_CONFIG } from '../graphql/queries';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import HistoryIcon from '@mui/icons-material/History';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PeopleIcon from '@mui/icons-material/People';
 import SettingsIcon from '@mui/icons-material/Settings';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
+import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import EventIcon from '@mui/icons-material/Event';
@@ -62,6 +64,10 @@ const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) =>
   const location = useLocation();
   const navigate = useNavigate();
   const theme = useTheme();
+
+  const { data: configData } = useQuery(GET_PUBLIC_CONFIG, { fetchPolicy: 'cache-first' });
+  const appConfig = configData?.publicConfig || { organizationName: 'German Homeopathy', appLogo: null };
+
   const isDark = theme.palette.mode === 'dark';
   const [expanded, setExpanded] = useState({
     'User Management': true,
@@ -110,9 +116,9 @@ const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) =>
 
   const drawerContent = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Logo / Brand – clicking it always lands safely on the dashboard */}
+      {/* Logo / Brand */}
       <Tooltip
-        title={isRail ? 'AttendEase – Staff Attendance' : ''}
+        title={isRail ? appConfig.organizationName : ''}
         disableHoverListener={!isRail}
         placement="right"
       >
@@ -130,24 +136,17 @@ const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) =>
           }}
           onClick={() => go('/')}
         >
-          <Avatar
-            sx={{
-              width: 40,
-              height: 40,
-              flexShrink: 0,
-              color: 'primary.contrastText',
-              bgcolor: 'primary.main',
-            }}
-          >
-            <FingerprintIcon />
-          </Avatar>
+          {appConfig.appLogo ? (
+            <Avatar src={appConfig.appLogo} alt={appConfig.organizationName} sx={{ width: 44, height: 44, flexShrink: 0, bgcolor: 'transparent' }} />
+          ) : (
+            <Avatar sx={{ width: 40, height: 40, flexShrink: 0, color: 'primary.main', bgcolor: 'transparent' }}>
+              <LocalHospitalIcon />
+            </Avatar>
+          )}
           {!isRail && (
             <Box>
-              <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.1, color: 'text.primary', letterSpacing: '-0.02em' }}>
-                AttendEase
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, display: 'block', mt: 0.25 }}>
-                Staff Attendance
+              <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.1, color: 'text.primary', letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
+                {appConfig.organizationName}
               </Typography>
             </Box>
           )}

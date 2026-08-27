@@ -2,6 +2,7 @@ export const settingsTypes = /* GraphQL */ `
   type Settings {
     id: ID!
     organizationName: String!
+    appLogo: String
     officeLatitude: Float!
     officeLongitude: Float!
     officeName: String
@@ -35,6 +36,7 @@ export const settingsTypes = /* GraphQL */ `
 
   input SettingsInput {
     organizationName: String
+    appLogoBase64: String
     officeLatitude: Float
     officeLongitude: Float
     officeName: String
@@ -62,5 +64,10 @@ export const settingsTypes = /* GraphQL */ `
     userUpdates: Boolean
     broadcasts: Boolean
     adminAlerts: Boolean
+  }
+
+  type PublicConfig {
+    organizationName: String!
+    appLogo: String
   }
 `;
