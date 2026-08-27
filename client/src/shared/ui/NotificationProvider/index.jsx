@@ -25,6 +25,7 @@ export const useNotification = () => {
       action,
       anchorOrigin,
       title,
+      key,
     } = options;
 
     const getIcon = () => {
@@ -76,10 +77,13 @@ export const useNotification = () => {
 
     enqueueSnackbar(message, {
       variant,
+      // A caller-supplied key defeats the provider's preventDuplicate so that
+      // repeating the SAME message (e.g. two punches in a row) still toasts.
+      ...(key !== undefined ? { key, preventDuplicate: false } : {}),
       autoHideDuration: persist ? null : autoHideDuration,
       anchorOrigin: anchorOrigin || { vertical: 'top', horizontal: 'right' },
-      content: (key) => React.cloneElement(content, { 
-        onClick: () => closeSnackbar(key) 
+      content: (snackKey) => React.cloneElement(content, {
+        onClick: () => closeSnackbar(snackKey),
       }),
     });
   };

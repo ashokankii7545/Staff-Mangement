@@ -40,6 +40,9 @@ class Application {
 
   public async start(): Promise<void> {
     logger.info(`Booting AttendEase API (${env.nodeEnv})…`);
+    logger.info(
+      `Face service: ${env.faceServiceUrl ? env.faceServiceUrl : 'DISABLED (FACE_SERVICE_URL empty)'}`,
+    );
 
     if (env.nodeEnv === 'production' && !mailer.configured) {
       // Loud, early warning – password-reset mails silently no-op otherwise.

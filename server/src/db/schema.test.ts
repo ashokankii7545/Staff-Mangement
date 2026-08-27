@@ -23,14 +23,17 @@ describe('Postgres schema', () => {
     }
   });
 
-  it('enforces unique constraints (users.email, users.employee_id, attendance {user,date,type}, exemptions {user,date})', async () => {
+  it('enforces unique constraints (users.email, users.employee_id, exemptions {user,date}) + attendance (user,date) index', async () => {
     const rows = await sql<{ indexname: string }[]>`
       SELECT indexname FROM pg_indexes WHERE schemaname = 'public'
     `;
     const idx = rows.map((r) => r.indexname);
     expect(idx).toContain('users_email_unique');
     expect(idx).toContain('users_employee_id_unique');
-    expect(idx).toContain('attendance_user_date_type_unique');
+    // Multi-session: the old unique {user,date,type} guard is gone, replaced by
+    // a plain composite (user,date) index (multiple punches per day allowed).
+    expect(idx).not.toContain('attendance_user_date_type_unique');
+    expect(idx).toContain('attendance_user_date_idx');
     expect(idx).toContain('exemptions_user_date_unique');
   });
 

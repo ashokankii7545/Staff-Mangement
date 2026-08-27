@@ -58,24 +58,19 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
     setVerifyingMsg('Verifying your identity...');
 
     try {
-      // 1. Verify Face Identity
-      const verification = await verifyFace(imageSrc, user?.avatar);
-
-      const noFaceInCapture = typeof verification.error === 'string'
-        && verification.error.startsWith('No face detected');
-
-      if (!verification.match && noFaceInCapture) {
-        // Useless capture - no face in frame at all, cannot attribute to a human
+      // Identity matching is decided SERVER-SIDE by the SFace face-service
+      // (reliable, commercial-safe). The old browser face-api check against the
+      // avatar was unreliable and wrongly flagged genuine staff, so it no longer
+      // gates the punch. We keep ONE light client check: reject a capture with
+      // NO detectable face at all (a useless frame), and prompt a retake.
+      const presence = await verifyFace(imageSrc, user?.avatar);
+      const noFaceInCapture =
+        typeof presence.error === 'string' && presence.error.startsWith('No face detected');
+      if (noFaceInCapture) {
         setSubmitting(false);
         setVerifyingMsg('');
-        notify.error(verification.error || 'No face detected. Please retake the photo.');
+        notify.error('No face detected. Please look at the camera and retake the photo.');
         return;
-      }
-
-      if (!verification.match) {
-        // Mismatch / unreadable avatar -> do NOT hard-block (false positives lock
-        // out genuine staff). Punch proceeds but server force-flags it PENDING.
-        notify.warning('Face did not clearly match your profile photo. Punch recorded - an ADMIN will manually verify it.');
       }
 
       setVerifyingMsg('Acquiring secure location...');
@@ -115,8 +110,10 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
             accuracy: currentLoc.accuracy || 20,
             browserTimezone,
             webRTCIPs,
-            faceMatched: !!verification.match,
-            faceMatchScore: typeof verification.distance === 'number' ? verification.distance : null,
+            // Let the SERVER (SFace) decide the match. Sending null instead of the
+            // browser's weak verdict so the server's result is authoritative.
+            faceMatched: null,
+            faceMatchScore: null,
             livenessFrames: Array.isArray(livenessFrames) ? livenessFrames : [],
           },
         },
@@ -132,8 +129,19 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
       }
 
       if (result.success) {
-        notify.success(result.message || 'Attendance verified & marked successfully!');
-        onClose();
+        // Unique key defeats preventDuplicate so repeated punches always toast.
+        notify.success(result.message || 'Attendance verified & marked successfully!', {
+          key: `punch-${Date.now()}`,
+        });
+        // Close AFTER the snackbar is enqueued so an immediate unmount doesn't
+        // swallow the confirmation toast.
+        setTimeout(() => onClose(), 150);
+      } else {
+        // Punch call returned success:false (shouldn't normally happen, but
+        // never leave the user without feedback).
+        notify.warning(result.message || 'Punch could not be completed. Please try again.', {
+          key: `punch-warn-${Date.now()}`,
+        });
       }
     } catch (err) {
       const errorMsg = err.message || 'Failed to submit attendance';

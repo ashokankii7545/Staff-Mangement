@@ -34,22 +34,81 @@ const HistoryPage = () => {
 
   const records = isAdmin ? data?.allAttendance : data?.myAttendance;
 
-  const rows = (records || []).map((record) => ({
-    id: `${record.date}_${record.user?.id}`,
-    employeeName: record.user?.name,
-    employeeId: record.user?.employeeId,
-    date: record.date,
-    clockIn: record.clockIn?.createdAt ? dayjs(!isNaN(Number(record.clockIn.createdAt)) ? Number(record.clockIn.createdAt) : record.clockIn.createdAt).format('hh:mm A') : '-',
-    clockOut: record.clockOut?.createdAt ? dayjs(!isNaN(Number(record.clockOut.createdAt)) ? Number(record.clockOut.createdAt) : record.clockOut.createdAt).format('hh:mm A') : '-',
-    clockInSelfie: record.clockIn?.selfieUrl,
-    totalHours: record.totalHours > 0 ? `${record.totalHours.toFixed(1)} hrs` : '—',
-    status: record.status,
-    rawLocation: record.clockIn?.location,
-    location: record.clockIn?.location?.address || 'Not recorded',
-  }));
+  // Robust epoch/ISO → "hh:mm A"
+  const fmtTime = (ts) =>
+    ts ? dayjs(!isNaN(Number(ts)) ? Number(ts) : ts).format('hh:mm A') : '—';
+
+  // ── Expand each day into ONE ROW PER SESSION (multi check-in/out) ──
+  // A day with 3 clock-in/out pairs becomes 3 rows, each with its own times,
+  // selfies, hours and location. Days with no paired session (open punch,
+  // exempt, absent) still render a single summary row.
+  const rows = [];
+  for (const record of records || []) {
+    const base = {
+      employeeName: record.user?.name,
+      employeeId: record.user?.employeeId,
+      date: record.date,
+      dayStatus: record.status,
+      dayTotalHours: record.totalHours,
+      sessionCount: record.sessionCount ?? (record.sessions?.length || 0),
+    };
+    const sessions = record.sessions || [];
+
+    if (sessions.length === 0) {
+      // No session pair – fall back to the day's first-in/last-out summary.
+      rows.push({
+        ...base,
+        id: `${record.date}_${record.user?.id}_day`,
+        sessionLabel: '—',
+        clockIn: fmtTime(record.clockIn?.createdAt),
+        clockOut: fmtTime(record.clockOut?.createdAt),
+        clockInSelfie: record.clockIn?.selfieUrl,
+        clockOutSelfie: record.clockOut?.selfieUrl,
+        sessionHours: record.totalHours > 0 ? `${record.totalHours.toFixed(1)} hrs` : '—',
+        status: record.status,
+        rawLocation: record.clockIn?.location,
+        location: record.clockIn?.location?.address || 'Not recorded',
+      });
+      continue;
+    }
+
+    sessions.forEach((s, i) => {
+      const isOpen = !s.clockOut;
+      rows.push({
+        ...base,
+        id: `${record.date}_${record.user?.id}_s${i}`,
+        sessionLabel: `#${i + 1}${sessions.length > 1 ? ` of ${sessions.length}` : ''}`,
+        clockIn: fmtTime(s.clockIn?.createdAt),
+        clockOut: isOpen ? 'On shift…' : fmtTime(s.clockOut?.createdAt),
+        clockInSelfie: s.clockIn?.selfieUrl,
+        clockOutSelfie: s.clockOut?.selfieUrl,
+        sessionHours: isOpen ? '—' : `${(s.hours || 0).toFixed(1)} hrs`,
+        // Per-row status: only the first row carries the day's overall status
+        // badge; the rest show a neutral session marker to avoid repetition.
+        status: i === 0 ? record.status : (isOpen ? 'ON_DUTY' : 'COMPLETED'),
+        rawLocation: s.clockIn?.location,
+        location: s.clockIn?.location?.address || 'Not recorded',
+      });
+    });
+  }
 
   const columns = [
-    { id: 'date', label: 'Date', width: 110, valueGetter: (row) => row.date, render: (row) => dayjs(row.date).format('DD MMM') },
+    {
+      id: 'date',
+      label: 'Date',
+      width: 110,
+      valueGetter: (row) => row.date,
+      render: (row) => (
+        <Box>
+          <Typography variant="body2" fontSize={13}>{dayjs(row.date).format('DD MMM')}</Typography>
+          {row.sessionCount > 1 && (
+            <Typography variant="caption" color="text.secondary">
+              {row.sessionCount} sessions · {row.dayTotalHours?.toFixed(1)} hrs total
+            </Typography>
+          )}
+        </Box>
+      ),
+    },
     ...(isAdmin ? [
       {
         id: 'employeeName',
@@ -70,8 +129,19 @@ const HistoryPage = () => {
       },
     ] : []),
     {
+      id: 'sessionLabel',
+      label: 'Session',
+      width: 90,
+      sortable: false,
+      render: (row) => (
+        <Typography variant="body2" fontWeight={600} color="text.secondary">
+          {row.sessionLabel}
+        </Typography>
+      ),
+    },
+    {
       id: 'clockInSelfie',
-      label: 'Selfie',
+      label: 'In Selfie',
       width: 80,
       align: 'center',
       sortable: false,
@@ -85,8 +155,23 @@ const HistoryPage = () => {
       ) : <Typography variant="caption" color="text.secondary">—</Typography>,
     },
     { id: 'clockIn', label: 'Clock In', width: 100 },
+    {
+      id: 'clockOutSelfie',
+      label: 'Out Selfie',
+      width: 80,
+      align: 'center',
+      sortable: false,
+      render: (row) => row.clockOutSelfie ? (
+        <Avatar
+          src={row.clockOutSelfie}
+          alt="Clock-out selfie"
+          sx={{ width: 36, height: 36, cursor: 'pointer', border: '2px solid', borderColor: 'divider' }}
+          onClick={() => setSelfiePreview(row.clockOutSelfie)}
+        />
+      ) : <Typography variant="caption" color="text.secondary">—</Typography>,
+    },
     { id: 'clockOut', label: 'Clock Out', width: 100 },
-    { id: 'totalHours', label: 'Hours', width: 90 },
+    { id: 'sessionHours', label: 'Hours', width: 90 },
     {
       id: 'status',
       label: 'Status',

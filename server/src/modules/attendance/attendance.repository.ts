@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
 import { populateRefs, populateRefsOne } from '../../shared/repository/populate.util.js';
 import { attendance } from '../../db/schema/attendance.schema.js';
@@ -14,8 +14,9 @@ const REFS = { user: 'user', approvedBy: 'user', punchedOffice: 'office' } as co
 
 /**
  * AttendanceRepository – punch record data access (Postgres/Drizzle).
- * The {user,date,type} unique index enforces the double-punch guard: a
- * duplicate insert throws a ConflictError (via DatabaseError.from → 23505).
+ * Multi-session model: many punches per user/day are allowed. `listByUserDate`
+ * returns a day's punches time-ordered so the service can derive the current
+ * open/closed state and pair sessions.
  */
 export class AttendanceRepository extends BaseRepository<typeof attendance> {
   private static instance: AttendanceRepository | null = null;
@@ -33,7 +34,7 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
 
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
   public readonly queries = {
-    /** Duplicate-punch guard + clock-out precondition check. */
+    /** Legacy single-punch lookup (kept for callers that still need one row). */
     findByUserDateType: (
       userId: string,
       date: string,
@@ -44,6 +45,21 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
           and(eq(attendance.user, userId), eq(attendance.date, date), eq(attendance.type, type))!,
         ) as Promise<AttendanceDocument | null>,
       ),
+
+    /**
+     * All of a user's punches for a single day, oldest → newest. Drives the
+     * multi-session state machine (last punch decides in/out) and session
+     * pairing for total-hours math. Not populated (internal use).
+     */
+    listByUserDate: (userId: string, date: string): Promise<AttendanceDocument[]> =>
+      this.exec('listByUserDate', async () => {
+        const rows = await this.db
+          .select()
+          .from(attendance)
+          .where(and(eq(attendance.user, userId), eq(attendance.date, date)))
+          .orderBy(asc(attendance.createdAt));
+        return this.withIds(rows) as unknown as AttendanceDocument[];
+      }),
 
     create: (data: Partial<IAttendance>): Promise<AttendanceDocument> =>
       this.exec('create', () => this.qInsert(data) as Promise<AttendanceDocument>),

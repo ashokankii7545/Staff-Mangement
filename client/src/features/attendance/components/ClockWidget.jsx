@@ -22,51 +22,60 @@ dayjs.extend(duration);
 const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
   const { formattedTime, formattedDate } = useClock();
 
-  const hasClockedIn = !!todayStatus?.clockIn;
-  const hasClockedOut = !!todayStatus?.clockOut;
-  const isOnShift = hasClockedIn && !hasClockedOut;
+  // ── Multi-session state (Zoho People-style) ──
+  // A user can clock in/out many times a day. The server tells us whether a
+  // session is currently OPEN (clocked in, awaiting clock-out) and the summed
+  // total of all COMPLETED sessions so far.
+  const sessions = todayStatus?.sessions ?? [];
+  const sessionCount = todayStatus?.sessionCount ?? sessions.length;
+  const isOnShift = !!todayStatus?.hasOpenSession;
+  const hasAnyPunch = sessionCount > 0 || !!todayStatus?.clockIn;
+  // Completed working time recorded so far today (open session not yet counted).
+  const completedHours = todayStatus?.totalHours ?? 0;
 
-  const clockInDate = hasClockedIn ? dayjs(todayStatus.clockIn.createdAt) : null;
-  const clockOutDate = hasClockedOut ? dayjs(todayStatus.clockOut.createdAt) : null;
+  // The open session's clock-in time drives the live stopwatch.
+  const openSession = isOnShift ? sessions.find((s) => !s.clockOut) : null;
+  const openSinceDate = openSession?.clockIn?.createdAt
+    ? dayjs(openSession.clockIn.createdAt)
+    : todayStatus?.clockIn?.createdAt
+      ? dayjs(todayStatus.clockIn.createdAt)
+      : null;
+
+  // First clock-in / latest clock-out across all of today's sessions.
+  const firstInDate = todayStatus?.clockIn?.createdAt ? dayjs(todayStatus.clockIn.createdAt) : null;
+  const lastOutDate = todayStatus?.clockOut?.createdAt ? dayjs(todayStatus.clockOut.createdAt) : null;
 
   // Active Live Elapsed Working Hours Stopwatch
   const [elapsedStr, setElapsedStr] = useState('00h 00m 00s');
   const [shiftProgress, setShiftProgress] = useState(0);
 
+  const fmt = (totalSec) => {
+    const d = dayjs.duration(Math.max(0, totalSec), 'seconds');
+    return `${String(Math.floor(d.asHours())).padStart(2, '0')}h ${String(d.minutes()).padStart(2, '0')}m ${String(d.seconds()).padStart(2, '0')}s`;
+  };
+
   useEffect(() => {
-    if (!isOnShift || !clockInDate) {
-      if (hasClockedOut && todayStatus?.totalHours) {
-        const totalSec = Math.round(todayStatus.totalHours * 3600);
-        const d = dayjs.duration(totalSec, 'seconds');
-        setElapsedStr(
-          `${String(Math.floor(d.asHours())).padStart(2, '0')}h ${String(d.minutes()).padStart(2, '0')}m ${String(d.seconds()).padStart(2, '0')}s`
-        );
-        setShiftProgress(Math.min(100, Math.round((todayStatus.totalHours / 9) * 100)));
-      }
+    const completedSec = Math.round(completedHours * 3600);
+
+    // Not currently on shift: show the summed completed time (static).
+    if (!isOnShift || !openSinceDate) {
+      setElapsedStr(fmt(completedSec));
+      setShiftProgress(Math.min(100, Math.round((completedHours / 9) * 100)));
       return;
     }
 
+    // On shift: live total = all completed sessions + time since this clock-in.
     const updateTimer = () => {
-      const now = dayjs();
-      const diffSec = Math.max(0, now.diff(clockInDate, 'second'));
-      const d = dayjs.duration(diffSec, 'seconds');
-      const hours = Math.floor(d.asHours());
-      const mins = d.minutes();
-      const secs = d.seconds();
-
-      setElapsedStr(
-        `${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`
-      );
-
-      // Assuming standard 9 hour shift (32400 seconds)
-      const progress = Math.min(100, Math.round((diffSec / 32400) * 100));
-      setShiftProgress(progress);
+      const liveSec = completedSec + Math.max(0, dayjs().diff(openSinceDate, 'second'));
+      setElapsedStr(fmt(liveSec));
+      // Progress toward a standard 9h (32400s) day.
+      setShiftProgress(Math.min(100, Math.round((liveSec / 32400) * 100)));
     };
 
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [isOnShift, clockInDate, hasClockedOut, todayStatus]);
+  }, [isOnShift, openSinceDate, completedHours]);
 
   return (
     <Card
@@ -105,9 +114,9 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
                 }}
               />
             }
-            label={hasClockedOut ? 'Shift Completed' : isOnShift ? 'Currently Working' : 'Punch Pending'}
+            label={isOnShift ? 'Currently Working' : hasAnyPunch ? 'On Break / Done' : 'Punch Pending'}
             size="small"
-            tone={isOnShift ? 'success' : hasClockedOut ? 'primary' : 'warning'}
+            tone={isOnShift ? 'success' : hasAnyPunch ? 'primary' : 'warning'}
             sx={{ fontSize: '0.75rem', height: 24 }}
           />
 
@@ -167,8 +176,8 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
         </Typography>
       </Box>
 
-      {/* Shift Live Progress Bar (if on shift or completed) */}
-      {(isOnShift || hasClockedOut) && (
+      {/* Shift Live Progress Bar (if on shift or any completed session today) */}
+      {(isOnShift || hasAnyPunch) && (
         <Box sx={{ mb: 2.5, p: 1.5, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.75 }}>
             <Stack direction="row" spacing={0.75} alignItems="center">
@@ -220,35 +229,46 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
       >
         <Box sx={{ textAlign: 'center' }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontWeight: 500 }}>
-            Clock In
+            First In
           </Typography>
-          <Typography variant="body2" fontWeight={600} sx={{ color: clockInDate ? 'text.primary' : 'text.disabled', fontSize: '0.875rem' }}>
-            {clockInDate ? clockInDate.format('hh:mm A') : '—'}
-          </Typography>
-        </Box>
-
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontWeight: 500 }}>
-            Clock Out
-          </Typography>
-          <Typography variant="body2" fontWeight={600} sx={{ color: clockOutDate ? 'text.primary' : 'text.disabled', fontSize: '0.875rem' }}>
-            {clockOutDate ? clockOutDate.format('hh:mm A') : '—'}
+          <Typography variant="body2" fontWeight={600} sx={{ color: firstInDate ? 'text.primary' : 'text.disabled', fontSize: '0.875rem' }}>
+            {firstInDate ? firstInDate.format('hh:mm A') : '—'}
           </Typography>
         </Box>
 
         <Box sx={{ textAlign: 'center' }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontWeight: 500 }}>
-            Shift Duration
+            {isOnShift ? 'Last Out' : 'Latest Out'}
           </Typography>
-          <Typography variant="body2" fontWeight={600} sx={{ color: todayStatus?.totalHours ? 'success.dark' : 'text.disabled', fontSize: '0.875rem' }}>
-            {todayStatus?.totalHours ? `${todayStatus.totalHours.toFixed(1)} hrs` : isOnShift ? 'Counting...' : '0.0 hrs'}
+          <Typography variant="body2" fontWeight={600} sx={{ color: lastOutDate ? 'text.primary' : 'text.disabled', fontSize: '0.875rem' }}>
+            {lastOutDate ? lastOutDate.format('hh:mm A') : '—'}
+          </Typography>
+        </Box>
+
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontWeight: 500 }}>
+            Sessions
+          </Typography>
+          <Typography variant="body2" fontWeight={600} sx={{ color: sessionCount ? 'text.primary' : 'text.disabled', fontSize: '0.875rem' }}>
+            {sessionCount || 0}
+          </Typography>
+        </Box>
+
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontWeight: 500 }}>
+            Total Worked
+          </Typography>
+          <Typography variant="body2" fontWeight={600} sx={{ color: completedHours ? 'success.dark' : 'text.disabled', fontSize: '0.875rem' }}>
+            {completedHours ? `${completedHours.toFixed(1)} hrs` : isOnShift ? 'Counting...' : '0.0 hrs'}
           </Typography>
         </Box>
       </Stack>
 
-      {/* Action Buttons */}
-      <Stack direction="row" spacing={1.5} justifyContent="center">
-        {!hasClockedIn && (
+      {/* Action Buttons – multi-session toggle.
+          Not on shift → Clock In (works for the FIRST punch and every RE-entry
+          after a clock-out). On shift → Clock Out. */}
+      <Stack spacing={1.25} justifyContent="center">
+        {!isOnShift && (
           <AppButton
             variant="contained"
             fullWidth
@@ -264,7 +284,7 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
               '&:hover': { bgcolor: 'success.dark' },
             }}
           >
-            Clock In (Selfie & GPS)
+            {hasAnyPunch ? 'Clock In Again (Selfie & GPS)' : 'Clock In (Selfie & GPS)'}
           </AppButton>
         )}
 
@@ -284,14 +304,14 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
               '&:hover': { bgcolor: 'warning.dark' },
             }}
           >
-            Clock Out (End Shift)
+            Clock Out
           </AppButton>
         )}
 
-        {hasClockedOut && (
+        {!isOnShift && hasAnyPunch && (
           <Box
             sx={{
-              p: 1.25,
+              p: 1,
               width: '100%',
               borderRadius: 1.5,
               bgcolor: 'success.light',
@@ -304,9 +324,9 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
               gap: 1,
             }}
           >
-            <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
-            <Typography variant="body2" fontWeight={600} sx={{ color: 'success.dark' }}>
-              Today's shift attendance recorded successfully!
+            <CheckCircleIcon sx={{ color: 'success.main', fontSize: 18 }} />
+            <Typography variant="caption" fontWeight={600} sx={{ color: 'success.dark' }}>
+              {sessionCount} session{sessionCount === 1 ? '' : 's'} today · {completedHours.toFixed(1)} hrs. You can clock in again anytime.
             </Typography>
           </Box>
         )}

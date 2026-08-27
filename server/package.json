@@ -16,6 +16,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:pgvector": "node scripts/enable-pgvector.mjs",
+    "db:attendance-multisession": "node scripts/attendance-multisession.mjs",
     "face:backfill": "node scripts/backfill-face-vectors.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",

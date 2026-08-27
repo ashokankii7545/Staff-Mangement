@@ -4,7 +4,6 @@ import { attendanceRepository } from './attendance.repository.js';
 import { userRepository } from '../user/user.repository.js';
 import { attendance, users } from '../../db/schema/index.js';
 import { db } from '../../config/drizzle.js';
-import { ConflictError } from '../../shared/errors/app.errors.js';
 
 let userId = '';
 const userIds: string[] = [];
@@ -43,14 +42,29 @@ describe('AttendanceRepository (Postgres)', () => {
     expect((pop!.user as unknown as { _id: string })._id).toBe(userId);
   });
 
-  it('enforces the {user,date,type} unique double-punch guard -> ConflictError', async () => {
-    const rec = await attendanceRepository.queries.create(punch('2031-02-02', 'CLOCK_IN'));
-    attIds.push(rec.id);
-    await expect(attendanceRepository.queries.create(punch('2031-02-02', 'CLOCK_IN'))).rejects.toBeInstanceOf(ConflictError);
-    // Different type on the same day is allowed.
-    const out = await attendanceRepository.queries.create(punch('2031-02-02', 'CLOCK_OUT'));
-    attIds.push(out.id);
-    expect(out.type).toBe('CLOCK_OUT');
+  it('allows multiple punches of the same type per day (Zoho-style multi-session)', async () => {
+    // No unique {user,date,type} guard anymore: a user can clock in/out repeatedly.
+    const in1 = await attendanceRepository.queries.create(punch('2031-02-02', 'CLOCK_IN'));
+    const out1 = await attendanceRepository.queries.create(punch('2031-02-02', 'CLOCK_OUT'));
+    const in2 = await attendanceRepository.queries.create(punch('2031-02-02', 'CLOCK_IN'));
+    const out2 = await attendanceRepository.queries.create(punch('2031-02-02', 'CLOCK_OUT'));
+    attIds.push(in1.id, out1.id, in2.id, out2.id);
+    expect([in1.id, out1.id, in2.id, out2.id].every(Boolean)).toBe(true);
+  });
+
+  it('listByUserDate returns all of a day\'s punches oldest-first', async () => {
+    const a = await attendanceRepository.queries.create(punch('2031-02-09', 'CLOCK_IN'));
+    const b = await attendanceRepository.queries.create(punch('2031-02-09', 'CLOCK_OUT'));
+    const cIn = await attendanceRepository.queries.create(punch('2031-02-09', 'CLOCK_IN'));
+    attIds.push(a.id, b.id, cIn.id);
+    const day = await attendanceRepository.queries.listByUserDate(userId, '2031-02-09');
+    expect(day.length).toBe(3);
+    // Oldest → newest (creation order preserved).
+    const idx = (id: string) => day.findIndex((x) => x.id === id);
+    expect(idx(a.id)).toBeLessThan(idx(b.id));
+    expect(idx(b.id)).toBeLessThan(idx(cIn.id));
+    // Last punch is a CLOCK_IN → an OPEN session.
+    expect(day[day.length - 1].type).toBe('CLOCK_IN');
   });
 
   it('findByUserDateType finds the exact punch', async () => {
