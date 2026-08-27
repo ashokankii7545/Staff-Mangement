@@ -12,6 +12,9 @@ export const notificationTypes = /* GraphQL */ `
     DAY_OFF
     MEDICINE_REQUEST
     MEDICINE_DECISION
+    PUNCH_REMINDER
+    DOCUMENT_UPLOADED
+    DOCUMENT_DECISION
     GENERIC
   }
 

@@ -36,6 +36,8 @@ describe('NotificationRepository (Postgres)', () => {
     const list = await notificationRepository.queries.listForRecipient(userId);
     expect(list.length).toBeGreaterThanOrEqual(2);
     expect(list[0].title).toBe('Two'); // newest first
+    // recipient must be populated (full user object) for the GraphQL User! field.
+    expect((list[0].recipient as unknown as { _id: string })._id).toBe(userId);
     expect(await notificationRepository.queries.countUnread(userId)).toBeGreaterThanOrEqual(2);
   });
 

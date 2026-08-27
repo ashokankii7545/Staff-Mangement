@@ -46,7 +46,18 @@ export class NotificationRepository extends BaseRepository<typeof notifications>
           .where(and(...conditions))
           .orderBy(desc(notifications.createdAt))
           .limit(Math.min(options.limit ?? 30, 100));
-        return this.withIds(rows) as NotificationDocument[];
+        // Populate recipient so the `Notification.recipient: User!` field
+        // resolves against a full user object. All rows share one recipient,
+        // so we resolve it ONCE and attach it to every row.
+        const withIds = this.withIds(rows) as NotificationDocument[];
+        if (withIds.length === 0) return withIds;
+        const recipientUser = await this.db
+          .select()
+          .from(users)
+          .where(eq(users.id, recipientId))
+          .limit(1);
+        const recipient = recipientUser[0] ? { ...recipientUser[0], _id: String(recipientUser[0].id) } : null;
+        return withIds.map((r) => ({ ...r, recipient })) as unknown as NotificationDocument[];
       }),
 
     countUnread: (recipientId: string): Promise<number> =>
@@ -61,7 +72,7 @@ export class NotificationRepository extends BaseRepository<typeof notifications>
           .set({ isRead: true, updatedAt: new Date() })
           .where(and(eq(notifications.id, id), eq(notifications.recipient, recipientId)))
           .returning();
-        return this.withId(rows[0] ?? null) as NotificationDocument | null;
+        return this.populateRecipient(this.withId(rows[0] ?? null) as NotificationDocument | null);
       }),
 
     markAllRead: (recipientId: string): Promise<number> =>
