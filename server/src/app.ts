@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { expressMiddleware } from '@apollo/server/express4';
-import type { ApolloServer } from '@apollo/server';
+import type { ApolloServer, BaseContext } from '@apollo/server';
 import { env } from './config/env.js';
 import { database } from './config/db.js';
 import { buildHttpContext } from './graphql/context.js';
@@ -63,7 +63,7 @@ export const createBaseApp = (): Express => {
 /** Mount the GraphQL endpoint (call once the Apollo server has started). */
 export const attachGraphql = (
   app: Express,
-  apollo: ApolloServer<unknown>,
+  apollo: ApolloServer<any>,
 ): void => {
   app.use(
     '/graphql',
