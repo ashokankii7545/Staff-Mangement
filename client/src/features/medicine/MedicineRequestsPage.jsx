@@ -10,10 +10,16 @@ import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
 import LocalPharmacyIcon from '@mui/icons-material/LocalPharmacy';
 
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import CloseIcon from '@mui/icons-material/Close';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+
 import GenericDataGrid from '../../shared/ui/GenericDataGrid';
 import GenericDialog from '../../shared/ui/GenericDialog';
 import PageHeader from '../../shared/ui/PageHeader';
 import AppButton from '../../shared/ui/AppButton';
+import ConfirmDialog from '../../shared/ui/ConfirmDialog';
 import { useAppQuery, useAppMutation } from '../../shared/hooks';
 import { GenericFormEngine, useNotification, ReviewDialog } from '../../shared/ui';
 import { z } from 'zod';
@@ -23,7 +29,13 @@ import {
   GET_ALL_MEDICINE_REQUESTS,
   GET_MEDICINES,
 } from '../../graphql/queries';
-import { REQUEST_MEDICINE, REVIEW_MEDICINE_REQUEST } from '../../graphql/mutations';
+import {
+  REQUEST_MEDICINE,
+  REVIEW_MEDICINE_REQUEST,
+  CANCEL_MY_MEDICINE_REQUEST,
+  CREATE_MEDICINE,
+} from '../../graphql/mutations';
+import MedicineWizard, { BLANK_MEDICINE } from '../admin/components/MedicineWizard';
 
 const URGENCY_COLOR = { URGENT: 'error', NORMAL: 'primary', LOW: 'default' };
 const STATUS_COLOR = { PENDING: 'warning', ORDERED: 'info', SUPPLIED: 'success', REJECTED: 'error' };
@@ -164,6 +176,7 @@ const MedicineRequestsPage = () => {
     variables: { status: statusTab },
     fetchPolicy: 'cache-and-network',
     skip: !isAdmin,
+    pollInterval: isAdmin ? 20000 : undefined, // stay in sync with the dashboard ActionCenter
   });
   const allRequests = adminQuery.data?.allMedicineRequests || [];
 
@@ -207,14 +220,60 @@ const MedicineRequestsPage = () => {
 
   const openReview = (row) => setReviewTarget(row);
 
+  // Refetch BOTH the active-tab query AND the PENDING key the dashboard
+  // ActionCenter reads, so the two admin surfaces stay in sync after a review.
+  const medicineRefetchQueries = [
+    { query: GET_ALL_MEDICINE_REQUESTS, variables: { status: statusTab } },
+    { query: GET_ALL_MEDICINE_REQUESTS, variables: { status: 'PENDING' } },
+    { query: GET_MY_MEDICINE_REQUESTS },
+  ];
+
   const [reviewMedicine, { loading: reviewing }] = useAppMutation(REVIEW_MEDICINE_REQUEST, {
     successMessage: 'Stock request updated',
-    refetchQueries: [
-      { query: GET_ALL_MEDICINE_REQUESTS, variables: { status: statusTab } },
-      { query: GET_MY_MEDICINE_REQUESTS },
-    ],
+    refetchQueries: medicineRefetchQueries,
     onError: (err) => notify.error(err.message),
   });
+
+  // ── A: staff cancels their own PENDING request ──────────────────────────
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelRequest, { loading: cancelling }] = useAppMutation(CANCEL_MY_MEDICINE_REQUEST, {
+    successMessage: 'Request cancelled',
+    refetchQueries: [{ query: GET_MY_MEDICINE_REQUESTS }],
+    onCompleted: () => setCancelTarget(null),
+    onError: (err) => notify.error(err.message),
+  });
+
+  // ── C: admin adds a NEW-medicine request straight into the catalogue ────
+  const [addToCatalog, setAddToCatalog] = useState(null); // the request being added
+  const [createMedicine, { loading: creatingCatalog }] = useAppMutation(CREATE_MEDICINE, {
+    successMessage: (d) => `${d.createMedicine.name} added to catalogue`,
+    onCompleted: () => setAddToCatalog(null),
+    onError: (err) => notify.error(err.message),
+  });
+
+  const submitAddToCatalog = async (values) => {
+    const input = {
+      name: values.name.trim(),
+      genericName: (values.genericName || '').trim(),
+      manufacturer: (values.manufacturer || '').trim(),
+      dosageForm: (values.dosageForm || '').trim(),
+      strength: (values.strength || '').trim(),
+      packSize: (values.packSize || '').trim(),
+      category: (values.category || '').trim(),
+      schedule: values.schedule || 'OTC',
+      uses: (values.uses || '').trim(),
+      dosageTiming: (values.dosageTiming || '').trim(),
+      directionsForUse: (values.directionsForUse || '').trim(),
+      storage: (values.storage || '').trim(),
+      sideEffects: (values.sideEffects || '').trim(),
+      price: Number(values.price),
+      gstRate: Number(values.gstRate),
+      isActive: true,
+    };
+    if (values.purchaseRate !== '' && values.purchaseRate != null) input.purchaseRate = Number(values.purchaseRate);
+    if (values.imageBase64) input.imageBase64 = values.imageBase64;
+    await createMedicine({ variables: { input } });
+  };
 
   // ── Columns ─────────────────────────────────────────────────────────────
   const staffColumns = [
@@ -236,6 +295,16 @@ const MedicineRequestsPage = () => {
     { id: 'createdAt', label: 'Requested On', width: 130, valueGetter: (r) => r.createdAt, render: (r) => (
         <Typography variant="body2">{dayjs(r.createdAt).format('DD MMM YYYY')}</Typography>
       ) },
+    { id: 'actions', label: '', width: 60, align: 'center', sortable: false, render: (r) =>
+        r.status === 'PENDING' ? (
+          <Tooltip title="Cancel request">
+            <IconButton size="small" color="error" onClick={() => setCancelTarget(r)} aria-label="Cancel request">
+              <CloseIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Typography variant="caption" color="text.disabled">—</Typography>
+        ) },
   ];
 
   const adminColumns = [
@@ -384,7 +453,50 @@ const MedicineRequestsPage = () => {
             variables: { id: reviewTarget.id, status: decision, adminFeedback: feedbackText },
           })
         }
+      >
+        {/* C: one-click add a brand-new medicine into the catalogue without
+            leaving the review – opens the wizard pre-filled with the request. */}
+        {reviewTarget?.isNewMedicine && (
+          <AppButton
+            variant="outlined"
+            fullWidth
+            startIcon={<AddCircleOutlineIcon fontSize="small" />}
+            onClick={() => { const t = reviewTarget; setReviewTarget(null); setAddToCatalog(t); }}
+            sx={{ mb: 1 }}
+          >
+            Add “{reviewTarget.medicineName}” to catalogue
+          </AppButton>
+        )}
+      </ReviewDialog>
+
+      {/* A: cancel-own-request confirm (staff) */}
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onClose={() => !cancelling && setCancelTarget(null)}
+        onConfirm={() => cancelRequest({ variables: { id: cancelTarget.id } })}
+        loading={cancelling}
+        title="Cancel this request?"
+        description={`Your pending request for “${cancelTarget?.medicineName ?? ''}” will be withdrawn. This can't be undone.`}
+        confirmText="Cancel Request"
+        cancelText="Keep"
+        variant="danger"
       />
+
+      {/* C: add-to-catalogue wizard, pre-filled from the request */}
+      {addToCatalog && (
+        <MedicineWizard
+          open
+          mode="add"
+          saving={creatingCatalog}
+          onClose={() => setAddToCatalog(null)}
+          onSubmit={submitAddToCatalog}
+          initialValues={{
+            ...BLANK_MEDICINE,
+            name: addToCatalog.medicineName || '',
+            strength: addToCatalog.strength || '',
+          }}
+        />
+      )}
     </Box>
   );
 };

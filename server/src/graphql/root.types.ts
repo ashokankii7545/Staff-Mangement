@@ -78,6 +78,8 @@ export const rootTypes = /* GraphQL */ `
     reviewRegularization(id: ID!, status: ApprovalStatus!, adminFeedback: String): RegularizationRequest!
     requestMedicine(input: MedicineRequestInput!): MedicineRequest!
     reviewMedicineRequest(id: ID!, status: String!, adminFeedback: String): MedicineRequest!
+    """Staff cancels their own still-PENDING stock request."""
+    cancelMyMedicineRequest(id: ID!): Boolean!
 
     """Master medicine catalogue – admin managed"""
     createMedicine(input: MedicineCatalogInput!): MedicineCatalog!

@@ -58,6 +58,12 @@ export class MedicineRepository extends BaseRepository<typeof medicineRequests> 
         return populateRefsOne(row, { requestedBy: 'user' }) as Promise<MedicineRequestDocument | null>;
       }),
 
+    findById: (id: string): Promise<MedicineRequestDocument | null> =>
+      this.exec('findById', () => this.qFindById(id) as Promise<MedicineRequestDocument | null>),
+
+    deleteById: (id: string): Promise<MedicineRequestDocument | null> =>
+      this.exec('deleteById', () => this.qDeleteById(id) as Promise<MedicineRequestDocument | null>),
+
     create: (data: Partial<IMedicineRequest>): Promise<MedicineRequestDocument> =>
       this.exec('create', () => this.qInsert(data) as Promise<MedicineRequestDocument>),
 

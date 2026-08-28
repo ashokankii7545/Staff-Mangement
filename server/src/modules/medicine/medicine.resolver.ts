@@ -60,6 +60,16 @@ export const medicineResolvers = {
       return medicineService.request(args.input, String(user._id));
     },
 
+    /** Staff cancels their own still-PENDING request. */
+    cancelMyMedicineRequest: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: ContextValue,
+    ) => {
+      const user = requireAuth(ctx.user);
+      return medicineService.cancelMine(args.id, String(user._id));
+    },
+
     /** Admin moves a request through ORDERED → SUPPLIED (or REJECTS it) */
     reviewMedicineRequest: async (
       _parent: unknown,

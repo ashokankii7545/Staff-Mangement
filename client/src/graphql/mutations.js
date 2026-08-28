@@ -329,6 +329,13 @@ export const REVIEW_MEDICINE_REQUEST = gql`
   }
 `;
 
+// Staff cancels their own still-PENDING stock request.
+export const CANCEL_MY_MEDICINE_REQUEST = gql`
+  mutation CancelMyMedicineRequest($id: ID!) {
+    cancelMyMedicineRequest(id: $id)
+  }
+`;
+
 // ── Master medicine catalogue (admin-managed) ────────────────────────────────
 export const CREATE_MEDICINE = gql`
   mutation CreateMedicine($input: MedicineCatalogInput!) {

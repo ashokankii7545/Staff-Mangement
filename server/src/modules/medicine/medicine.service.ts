@@ -88,6 +88,29 @@ class MedicineService {
     return medicineRepository.queries.listMine(userId);
   }
 
+  /**
+   * Staff cancels their OWN request – only while still PENDING (once the owner
+   * has ordered/supplied/rejected it, it's out of the staff member's hands).
+   * Also closes the admins' "new request" notification so it leaves their inbox.
+   */
+  public async cancelMine(id: string, ownerId: string): Promise<boolean> {
+    const request = await medicineRepository.queries.findById(id);
+    if (!request) throw new ValidationError('Request not found.');
+    if (String(request.requestedBy) !== String(ownerId)) {
+      throw new ValidationError('You can only cancel your own requests.');
+    }
+    if (request.status !== 'PENDING') {
+      throw new ValidationError('Only pending requests can be cancelled.');
+    }
+    await medicineRepository.queries.deleteById(id);
+    await notificationRepository.queries.closeMetaNotifications(
+      'MEDICINE_REQUEST',
+      'medicineRequestId',
+      String(request._id),
+    );
+    return true;
+  }
+
   public listAll(status?: string): Promise<MedicineRequestDocument[]> {
     return medicineRepository.queries.listAll(status);
   }
