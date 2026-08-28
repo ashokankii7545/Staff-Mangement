@@ -1,11 +1,16 @@
-import { useNotification } from '../../../shared/ui';
+import { useNotification, GenericDialog } from '../../../shared/ui';
 import AppButton from '../../../shared/ui/AppButton';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
 import Typography from '@mui/material/Typography';
-import { useRef } from 'react';
+import Paper from '@mui/material/Paper';
+import IconButton from '@mui/material/IconButton';
+import { useRef, useState } from 'react';
+import Webcam from 'react-webcam';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
+import CameraswitchIcon from '@mui/icons-material/Cameraswitch';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 // Must mirror the server contract in server/src/shared/utils/file-upload.util.ts
@@ -25,6 +30,21 @@ const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
   const notify = useNotification();
   const fileInputRef = useRef(null);
+  const webcamRef = useRef(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [facingMode, setFacingMode] = useState('environment');
+
+  // Snap the current webcam frame → data-url. Works on desktop (Mac webcam)
+  // and mobile alike, unlike `capture` which desktops ignore.
+  const takeSnapshot = () => {
+    const shot = webcamRef.current?.getScreenshot();
+    if (!shot) {
+      notify.warning('Could not capture the photo. Please allow camera access and try again.');
+      return;
+    }
+    onChange?.(shot);
+    setCameraOpen(false);
+  };
 
   const handleFile = (event) => {
     const file = event.target.files?.[0];
@@ -49,16 +69,28 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
   return (
     <Box sx={{ textAlign: 'center' }}>
       {!value ? (
-        <AppButton
-          fullWidth
-          variant="outlined"
-          color="primary"
-          startIcon={<AddPhotoAlternateIcon />}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
-        >
-          Upload Image (Optional)
-        </AppButton>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <AppButton
+            fullWidth
+            variant="outlined"
+            color="primary"
+            startIcon={<AddPhotoAlternateIcon />}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+          >
+            Upload Image
+          </AppButton>
+          <AppButton
+            fullWidth
+            variant="outlined"
+            color="primary"
+            startIcon={<PhotoCameraIcon />}
+            onClick={() => setCameraOpen(true)}
+            disabled={disabled}
+          >
+            Take Photo
+          </AppButton>
+        </Stack>
       ) : (
         <Stack alignItems="center" spacing={1}>
           <Avatar
@@ -80,11 +112,12 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
         </Stack>
       )}
       {!value && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-          JPG, PNG or WebP · max 3 MB
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+          Upload a file or snap a live photo · JPG, PNG or WebP · max 3 MB
         </Typography>
       )}
 
+      {/* Gallery / file picker */}
       <input
         ref={fileInputRef}
         type="file"
@@ -92,6 +125,50 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
         style={{ display: 'none' }}
         onChange={handleFile}
       />
+
+      {/* Live camera capture – real webcam (works on desktop + mobile) */}
+      <GenericDialog
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        title="Take Photo"
+        maxWidth="xs"
+        actions={
+          <>
+            <AppButton variant="text" onClick={() => setCameraOpen(false)}>Cancel</AppButton>
+            <AppButton variant="contained" startIcon={<PhotoCameraIcon fontSize="small" />} onClick={takeSnapshot}>
+              Capture
+            </AppButton>
+          </>
+        }
+      >
+        <Box sx={{ textAlign: 'center' }}>
+          <Paper
+            elevation={0}
+            sx={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', borderRadius: 2, overflow: 'hidden', bgcolor: 'text.primary', border: '1px solid', borderColor: 'divider' }}
+          >
+            {cameraOpen && (
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            )}
+            <IconButton
+              size="small"
+              onClick={() => setFacingMode((p) => (p === 'user' ? 'environment' : 'user'))}
+              sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.5)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }}
+              aria-label="Switch camera"
+            >
+              <CameraswitchIcon fontSize="small" />
+            </IconButton>
+          </Paper>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Allow camera access, frame the medicine pack, then Capture.
+          </Typography>
+        </Box>
+      </GenericDialog>
     </Box>
   );
 };
