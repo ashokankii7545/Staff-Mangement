@@ -1,6 +1,6 @@
 {
   "name": "German Homeopathy - Staff Attendance",
-  "short_name": "Attendance",
+  "short_name": "German Homeopathy",
   "description": "Selfie-based staff attendance with GPS verification, leaves, medicine requests and real-time dashboards.",
   "start_url": "/",
   "scope": "/",
