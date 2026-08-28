@@ -13,7 +13,11 @@ import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import { useNavigate } from 'react-router-dom';
+import { useApolloClient } from '@apollo/client';
 import { useAuth } from '../../../shared/auth/AuthContext';
+import { useState } from 'react';
+import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
+import { alpha } from '@mui/material/styles';
 
 import { GET_SETTINGS, GET_OFFICES } from '../../../graphql/queries';
 import DateRangePicker from '../../../shared/ui/DateRangePicker';
@@ -35,8 +39,24 @@ const AdminHeader = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const client = useApolloClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { data: settingsData } = useAppQuery(GET_SETTINGS);
   const { data: officesData } = useAppQuery(GET_OFFICES);
+
+  // Soft-refresh: refetch every active Apollo query (dashboard stats, lists…)
+  // WITHOUT a full page reload. Falls back silently if anything fails.
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await client.refetchQueries({ include: 'active' });
+    } catch {
+      // Individual query errors surface in their own components – ignore here.
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const settings = settingsData?.settings;
   const offices = officesData?.offices || [];
@@ -129,6 +149,27 @@ const AdminHeader = ({
 
         {/* Right Side: Action Buttons */}
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <AppButton
+            variant="outlined"
+            startIcon={
+              <RefreshOutlinedIcon
+                fontSize="small"
+                sx={{
+                  animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                  '@keyframes spin': {
+                    from: { transform: 'rotate(0deg)' },
+                    to: { transform: 'rotate(360deg)' },
+                  },
+                }}
+              />
+            }
+            disabled={isRefreshing}
+            onClick={handleRefresh}
+            sx={{ color: 'text.primary', borderColor: (t) => alpha(t.palette.primary.main, 0.4) }}
+          >
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </AppButton>
+
           <AppButton
             color="primary"
             startIcon={<AddIcon fontSize="small" />}
