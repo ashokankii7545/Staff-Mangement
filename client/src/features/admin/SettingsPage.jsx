@@ -22,6 +22,8 @@ import { GET_SETTINGS, GET_PUBLIC_CONFIG } from '../../graphql/queries';
 import { UPDATE_SETTINGS } from '../../graphql/mutations';
 import { PageHeader, AppButton, useNotification } from '../../shared/ui';
 import Box from '@mui/material/Box';
+import Avatar from '@mui/material/Avatar';
+import Button from '@mui/material/Button';
 
 const WEEK_DAYS = [
   'Monday',
