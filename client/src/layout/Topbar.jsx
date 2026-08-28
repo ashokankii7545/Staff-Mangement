@@ -209,6 +209,16 @@ const Topbar = ({ onMenuClick, onToggleSidebar, sidebarCollapsed = false }) => {
 
             <Divider sx={{ my: 0.5 }} />
 
+            {/* Staff self-service profile – everything they can view in one place */}
+            {!isAdmin && (
+              <MenuItem onClick={() => handleNavigate('/profile')} sx={{ borderRadius: 1.5, py: 1 }}>
+                <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>
+                  <PersonOutlineIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="My Profile" primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: 500 }} />
+              </MenuItem>
+            )}
+
             {isAdmin ? (
               <MenuItem onClick={() => handleNavigate('/settings')} sx={{ borderRadius: 1.5, py: 1 }}>
                 <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>

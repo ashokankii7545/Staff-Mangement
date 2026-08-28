@@ -43,6 +43,7 @@ export const NOTIFICATION_TYPES = [
   'PUNCH_REMINDER',
   'DOCUMENT_UPLOADED',
   'DOCUMENT_DECISION',
+  'DOCUMENT_REQUESTED',
   'GENERIC',
 ] as const;
 export type NotificationTypeUnion = (typeof NOTIFICATION_TYPES)[number];

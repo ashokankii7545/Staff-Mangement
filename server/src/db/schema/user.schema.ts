@@ -37,6 +37,25 @@ export interface LeaveBalancesJson {
   earned: number;
 }
 
+/** jsonb shape for salary (admin-managed compensation). */
+export interface SalaryJson {
+  ctc: number | null;
+  basic: number | null;
+  hra: number | null;
+  allowances: number | null;
+  deductions: number | null;
+  currency: string;
+  effectiveFrom: string | null; // ISO date string
+}
+
+/** jsonb shape for bonus (admin-managed). */
+export interface BonusJson {
+  amount: number | null;
+  reason: string;
+  frequency: string; // ONE_TIME | MONTHLY | QUARTERLY | ANNUAL
+  payoutDate: string | null; // ISO date string
+}
+
 /**
  * Users – the identity + profile table (old Mongo `User` collection).
  * Auth (JWT/Google/bcrypt) is UNCHANGED; it just reads/writes this table.
@@ -81,6 +100,9 @@ export const users = pgTable(
     faceVector: vector('face_vector'),
     shiftStartTime: text('shift_start_time').notNull().default(''),
     shiftEndTime: text('shift_end_time').notNull().default(''),
+    /** Admin-managed compensation (nullable – set only when an admin fills it in). */
+    salary: jsonb('salary').$type<SalaryJson | null>(),
+    bonus: jsonb('bonus').$type<BonusJson | null>(),
     ...timestamps,
   },
   (t) => ({

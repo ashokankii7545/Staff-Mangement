@@ -59,6 +59,71 @@ class UserService {
     return userRepository.queries.findById(id, { populate: ['assignedOffice'] });
   }
 
+  /** Admin: set a staff member's salary (compensation). */
+  public async updateSalary(
+    userId: string,
+    input: {
+      ctc?: number | null;
+      basic?: number | null;
+      hra?: number | null;
+      allowances?: number | null;
+      deductions?: number | null;
+      currency?: string | null;
+      effectiveFrom?: string | null;
+    },
+  ): Promise<IUserDocument | null> {
+    const target = await userRepository.queries.findById(userId);
+    if (!target) throw new NotFoundError('User not found');
+    const salary = {
+      ctc: input.ctc ?? null,
+      basic: input.basic ?? null,
+      hra: input.hra ?? null,
+      allowances: input.allowances ?? null,
+      deductions: input.deductions ?? null,
+      currency: input.currency || 'INR',
+      effectiveFrom: input.effectiveFrom || null,
+    };
+    return userRepository.queries.updateById(userId, { salary }, { populate: ['assignedOffice'] });
+  }
+
+  /** Admin: set a staff member's bonus. */
+  public async updateBonus(
+    userId: string,
+    input: { amount?: number | null; reason?: string | null; frequency?: string | null; payoutDate?: string | null },
+  ): Promise<IUserDocument | null> {
+    const target = await userRepository.queries.findById(userId);
+    if (!target) throw new NotFoundError('User not found');
+    const bonus = {
+      amount: input.amount ?? null,
+      reason: input.reason || '',
+      frequency: input.frequency || 'ONE_TIME',
+      payoutDate: input.payoutDate || null,
+    };
+    return userRepository.queries.updateById(userId, { bonus }, { populate: ['assignedOffice'] });
+  }
+
+  /** Admin "Ask Doc": notify a staff member to upload a named document. */
+  public async requestDocument(
+    userId: string,
+    title: string,
+    note?: string | null,
+  ): Promise<{ success: boolean; message: string }> {
+    const cleanTitle = String(title || '').trim();
+    if (!cleanTitle) throw new ValidationError('Document name is required.');
+    const target = await userRepository.queries.findById(userId);
+    if (!target) throw new NotFoundError('User not found');
+
+    await notificationService.push({
+      recipientIds: [String(target._id)],
+      type: 'DOCUMENT_REQUESTED',
+      title: `Document requested: ${cleanTitle}`,
+      message: note?.trim() || `Please upload "${cleanTitle}" for verification.`,
+      link: '/documents',
+    });
+
+    return { success: true, message: `Requested "${cleanTitle}" from ${target.name}.` };
+  }
+
   /** Self-signups waiting for an admin decision. */
   public listPendingUsers(): Promise<IUserDocument[]> {
     return userRepository.queries.listPendingSignups();

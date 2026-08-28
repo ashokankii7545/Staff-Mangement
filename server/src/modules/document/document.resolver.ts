@@ -14,6 +14,12 @@ export const documentResolvers = {
       requireAdmin(ctx.user);
       return documentService.listAll();
     },
+
+    /** Documents uploaded by a specific staff member (admin). */
+    userDocuments: async (_parent: unknown, args: { userId: string }, ctx: ContextValue) => {
+      requireAdmin(ctx.user);
+      return documentService.listForUser(args.userId);
+    },
   },
 
   Mutation: {

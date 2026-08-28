@@ -27,6 +27,8 @@ export const rootTypes = /* GraphQL */ `
     weeklyAttendance: [AttendanceSummary!]!
     myDocuments: [StaffDocument!]!
     allDocuments: [StaffDocument!]!
+    """Documents uploaded by a specific staff member (admin)."""
+    userDocuments(userId: ID!): [StaffDocument!]!
     monthlyTrend(month: Int!, year: Int!): [DailyTrend!]!
     settings: Settings!
     recentActivity(limit: Int): [Attendance!]!
@@ -55,6 +57,9 @@ export const rootTypes = /* GraphQL */ `
     registerStaff(input: RegisterInput!): User!
     updateUser(id: ID!, input: UpdateUserInput!): User!
     toggleUserActive(userId: ID!): User!
+    """Admin: set a staff member's salary / bonus (compensation)."""
+    updateSalary(userId: ID!, input: SalaryInput!): User!
+    updateBonus(userId: ID!, input: BonusInput!): User!
     createOffice(input: OfficeInput!): Office!
     updateOffice(id: ID!, input: OfficeInput!): Office!
     deleteOffice(id: ID!): Boolean!
@@ -80,6 +85,8 @@ export const rootTypes = /* GraphQL */ `
     uploadDocument(input: UploadDocumentInput!): StaffDocument!
     deleteMyDocument(id: ID!): Boolean!
     reviewDocument(id: ID!, status: ApprovalStatus!, adminFeedback: String): StaffDocument!
+    """Admin asks a staff member to upload a named document ("Ask Doc")."""
+    requestDocument(userId: ID!, title: String!, note: String): DefaultResponse!
     """Public self-signup — account stays UNVERIFIED until OTP is verified"""
     signup(input: SignUpInput!): SignupResult!
     verifyEmailOTP(email: String!, otp: String!): DefaultResponse!

@@ -15,6 +15,13 @@
       "when": 1787820543393,
       "tag": "0001_neat_ironclad",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787908755751,
+      "tag": "0002_sudden_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }
