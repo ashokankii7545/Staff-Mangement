@@ -60,6 +60,36 @@ export const userResolvers = {
       return userService.toggleActive(args.userId, String(actor._id));
     },
 
+    /** Admin: set a staff member's salary. */
+    updateSalary: async (
+      _parent: unknown,
+      args: { userId: string; input: Parameters<typeof userService.updateSalary>[1] },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return userService.updateSalary(args.userId, args.input);
+    },
+
+    /** Admin: set a staff member's bonus. */
+    updateBonus: async (
+      _parent: unknown,
+      args: { userId: string; input: Parameters<typeof userService.updateBonus>[1] },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return userService.updateBonus(args.userId, args.input);
+    },
+
+    /** Admin "Ask Doc": request a named document from a staff member. */
+    requestDocument: async (
+      _parent: unknown,
+      args: { userId: string; title: string; note?: string | null },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return userService.requestDocument(args.userId, args.title, args.note);
+    },
+
     /** Persist the UI theme so it follows the user across devices & re-logins */
     setThemePreference: async (
       _parent: unknown,
@@ -148,6 +178,11 @@ export const userResolvers = {
       sick: parent.leaveBalances?.sick ?? 6,
       earned: parent.leaveBalances?.earned ?? 0,
     }),
+    // Compensation is nullable – legacy rows return null (no salary/bonus set).
+    salary: (parent: IUserDocument) =>
+      (parent as unknown as { salary?: unknown }).salary ?? null,
+    bonus: (parent: IUserDocument) =>
+      (parent as unknown as { bonus?: unknown }).bonus ?? null,
   },
 
   Exemption: {

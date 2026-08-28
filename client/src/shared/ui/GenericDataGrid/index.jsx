@@ -96,6 +96,8 @@ export const GenericDataGrid = ({
   hidePagination = false,
   /** Called when the user taps Retry on the error state (falls back to reload) */
   onRetry,
+  /** Optional: called with (row) when a body row is clicked. Makes rows clickable. */
+  onRowClick,
 }) => {
   const [internalPage, setInternalPage] = useState(0);
   const [internalRowsPerPage, setInternalRowsPerPage] = useState(rowsPerPage);
@@ -373,9 +375,15 @@ export const GenericDataGrid = ({
           <TableHead>{renderHeadCells()}</TableHead>
           <TableBody>
             {paginatedRows.map((row) => (
-              <TableRow key={row.id} hover selected={selectedIds.includes(row.id)}>
+              <TableRow
+                key={row.id}
+                hover
+                selected={selectedIds.includes(row.id)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                sx={onRowClick ? { cursor: 'pointer' } : undefined}
+              >
                 {selectable && (
-                  <TableCell padding="checkbox">
+                  <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.includes(row.id)}
                       onChange={(e) => handleSelectOne(row.id, e.target.checked)}
@@ -383,7 +391,12 @@ export const GenericDataGrid = ({
                   </TableCell>
                 )}
                 {displayColumns.map((col) => (
-                  <TableCell key={col.id} align={col.align || 'left'}>
+                  <TableCell
+                    key={col.id}
+                    align={col.align || 'left'}
+                    // Interactive cells (buttons, switches) opt out of the row click.
+                    onClick={onRowClick && col.stopRowClick ? (e) => e.stopPropagation() : undefined}
+                  >
                     {col.render ? col.render(row) : row[col.id]}
                   </TableCell>
                 ))}

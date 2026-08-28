@@ -25,7 +25,45 @@ export const userTypes = /* GraphQL */ `
     leaveBalances: LeaveBalances
     shiftStartTime: String
     shiftEndTime: String
+    salary: Salary
+    bonus: Bonus
     createdAt: DateTime
+  }
+
+  """Admin-managed compensation for a staff member."""
+  type Salary {
+    ctc: Float
+    basic: Float
+    hra: Float
+    allowances: Float
+    deductions: Float
+    currency: String
+    effectiveFrom: DateTime
+  }
+
+  """Admin-managed bonus for a staff member."""
+  type Bonus {
+    amount: Float
+    reason: String
+    frequency: String
+    payoutDate: DateTime
+  }
+
+  input SalaryInput {
+    ctc: Float
+    basic: Float
+    hra: Float
+    allowances: Float
+    deductions: Float
+    currency: String
+    effectiveFrom: String
+  }
+
+  input BonusInput {
+    amount: Float
+    reason: String
+    frequency: String
+    payoutDate: String
   }
 
   """Time-bound duty at another site – overrides assignedOffice between dates"""

@@ -41,10 +41,11 @@ const ICONS = {
  *
  * Wired into GenericFormEngine as a `custom` field inside Edit Staff.
  */
-const PageAccessMatrix = ({ value, onChange }) => {
+const PageAccessMatrix = ({ value, onChange, disabled = false }) => {
   const restricted = Array.isArray(value) ? value : [];
 
   const toggle = (key, granted) => {
+    if (disabled) return;
     const next = granted
       ? restricted.filter((k) => k !== key)
       : [...restricted, key];
@@ -53,13 +54,6 @@ const PageAccessMatrix = ({ value, onChange }) => {
 
   return (
     <Box>
-      <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
-        Page Access
-      </Typography>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
-        Every page is OPEN by default. Switch a row OFF to withdraw it for this account.
-      </Typography>
-
       <Stack spacing={0.5}>
         {PAGE_CATALOG.map(({ key, label, icon, locked }) => {
           const Icon = ICONS[icon] || DashboardIcon;
@@ -68,7 +62,7 @@ const PageAccessMatrix = ({ value, onChange }) => {
             <Switch
               size="small"
               checked={granted}
-              disabled={locked}
+              disabled={locked || disabled}
               onChange={(e) => toggle(key, e.target.checked)}
               aria-label={`Toggle ${label}`}
             />

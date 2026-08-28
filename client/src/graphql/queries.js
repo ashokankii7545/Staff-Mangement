@@ -667,3 +667,111 @@ export const GET_UNREAD_NOTIFICATIONS_COUNT = gql`
 `;
 
 
+
+// ── Staff Profile dialog (admin) ─────────────────────────────────────────────
+// Full single-user profile. Includes per-user shift overrides and compensation
+// (salary / bonus) that the list query does not carry.
+// NOTE: `user(id)`, `shiftStartTime`/`shiftEndTime` on the user, and the
+// `salary`/`bonus` sub-objects require matching backend resolvers/schema.
+export const GET_STAFF_PROFILE = gql`
+  query GetStaffProfile($id: ID!) {
+    user(id: $id) {
+      id
+      employeeId
+      name
+      email
+      role
+      avatar
+      isActive
+      approvalStatus
+      restrictedPages
+      createdAt
+      shiftStartTime
+      shiftEndTime
+      assignedOffice {
+        id
+        name
+      }
+      leaveBalances {
+        casual
+        sick
+        earned
+      }
+      salary {
+        ctc
+        basic
+        hra
+        allowances
+        deductions
+        currency
+        effectiveFrom
+      }
+      bonus {
+        amount
+        reason
+        payoutDate
+        frequency
+      }
+    }
+  }
+`;
+
+// Self-view profile (staff). Uses the auth-gated `me` query, which already
+// exposes salary/bonus/shift on the User type.
+export const GET_MY_PROFILE = gql`
+  query GetMyProfile {
+    me {
+      id
+      employeeId
+      name
+      email
+      role
+      avatar
+      isActive
+      approvalStatus
+      restrictedPages
+      createdAt
+      shiftStartTime
+      shiftEndTime
+      assignedOffice {
+        id
+        name
+      }
+      leaveBalances {
+        casual
+        sick
+        earned
+      }
+      salary {
+        ctc
+        basic
+        hra
+        allowances
+        deductions
+        currency
+        effectiveFrom
+      }
+      bonus {
+        amount
+        reason
+        payoutDate
+        frequency
+      }
+    }
+  }
+`;
+
+// Documents uploaded by a specific staff member (admin view).
+export const GET_USER_DOCUMENTS = gql`
+  query GetUserDocuments($userId: ID!) {
+    userDocuments(userId: $userId) {
+      id
+      title
+      category
+      fileUrl
+      status
+      adminFeedback
+      createdAt
+    }
+  }
+`;

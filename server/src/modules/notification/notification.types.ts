@@ -15,6 +15,7 @@ export const notificationTypes = /* GraphQL */ `
     PUNCH_REMINDER
     DOCUMENT_UPLOADED
     DOCUMENT_DECISION
+    DOCUMENT_REQUESTED
     GENERIC
   }
 

@@ -58,11 +58,12 @@ export const STATUS_COLORS = {
 
 export const NAV_ITEMS_STAFF = [
   { label: 'Dashboard', path: '/', icon: 'Dashboard' },
+  { label: 'My Profile', path: '/profile', icon: 'Person' },
   { label: 'Mark Attendance', path: '/attendance', icon: 'CameraAlt' },
   { label: 'Stock Requests', path: '/stock', icon: 'LocalPharmacy' },
   { label: 'My History', path: '/history', icon: 'History' },
   { label: 'My Leaves', path: '/leaves', icon: 'EventNote' },
-  { label: 'My Documents', path: '/documents', icon: 'FolderShared' },
+  // "My Documents" removed – staff manage documents inside My Profile → Overview.
 ];
 
 export const NAV_ITEMS_ADMIN = [

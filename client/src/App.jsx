@@ -74,6 +74,11 @@ const appRoutes = [
         load: () => import('./features/documents/DocumentsPage'),
       },
       {
+        path: 'profile',
+        meta: { requiresAuth: true, pageKey: '/profile' },
+        load: () => import('./features/profile/MyProfilePage'),
+      },
+      {
         path: 'admin',
         meta: { requiresAuth: true, pageKey: '/admin', allowedRoles: ['ADMIN'] },
         load: () => import('./features/admin/AdminDashboard'),

@@ -546,3 +546,48 @@ export const REVOKE_DAY_OFF = gql`
     revokeDayOff(id: $id)
   }
 `;
+
+// ── Staff Profile dialog (admin) ─────────────────────────────────────────────
+// Compensation + document-request operations used by StaffProfileDialog.
+// NOTE: these require matching backend resolvers/schema — they do not exist yet
+// on the server and will error until the API is extended.
+export const UPDATE_SALARY = gql`
+  mutation UpdateSalary($userId: ID!, $input: SalaryInput!) {
+    updateSalary(userId: $userId, input: $input) {
+      id
+      salary {
+        ctc
+        basic
+        hra
+        allowances
+        deductions
+        currency
+        effectiveFrom
+      }
+    }
+  }
+`;
+
+export const UPDATE_BONUS = gql`
+  mutation UpdateBonus($userId: ID!, $input: BonusInput!) {
+    updateBonus(userId: $userId, input: $input) {
+      id
+      bonus {
+        amount
+        reason
+        payoutDate
+        frequency
+      }
+    }
+  }
+`;
+
+// "Ask Doc" — asks a specific staff member to upload a named document.
+export const REQUEST_DOCUMENT = gql`
+  mutation RequestDocument($userId: ID!, $title: String!, $note: String) {
+    requestDocument(userId: $userId, title: $title, note: $note) {
+      success
+      message
+    }
+  }
+`;

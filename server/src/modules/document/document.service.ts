@@ -30,6 +30,11 @@ class DocumentService {
     return documentRepository.queries.listMine(userId);
   }
 
+  /** Admin: documents uploaded by a specific staff member. */
+  public listForUser(userId: string): Promise<StaffDocumentModelDoc[]> {
+    return documentRepository.queries.listMine(userId);
+  }
+
   public listAll(): Promise<StaffDocumentModelDoc[]> {
     return documentRepository.queries.listAll();
   }

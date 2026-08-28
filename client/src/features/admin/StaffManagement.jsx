@@ -13,7 +13,6 @@ import GenericDataGrid from '../../shared/ui/GenericDataGrid';
 import { GET_USERS, GET_OFFICES } from '../../graphql/queries';
 import {
   TOGGLE_USER_ACTIVE,
-  UPDATE_USER,
   REGISTER_STAFF,
   ASSIGN_TEMP_DUTY,
   CLEAR_TEMP_DUTY,
@@ -31,9 +30,10 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 //    Quick-Add modal and this page can never drift apart again ──
 import {
   ADD_STAFF_FIELDS,
-  EDIT_STAFF_FIELDS,
   BLANK_STAFF_FORM as BLANK_FORM,
 } from './staffFormConfig';
+import { useAuth } from '../../shared/auth/AuthContext';
+import ProfileDialog from '../profile/ProfileDialog';
 
 // ── JSON-driven form configs (single source of truth for both dialogs) ──
 // ── Small JSON-driven dialogs (replaces hand-written TextField stacks) ──
@@ -87,9 +87,10 @@ const StaffManagement = () => {
   });
 
   const { data: officeData } = useAppQuery(GET_OFFICES);
+  const { isAdmin } = useAuth();
   const [addDialog, setAddDialog] = useState(false);
-  const [editDialog, setEditDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
+  // Full-screen profile dialog (admin only) – opened by clicking a table row.
+  const [profileStaffId, setProfileStaffId] = useState(null);
   // Row action dialogs
   const [tempDutyUser, setTempDutyUser] = useState(null);
   const [dayOffUser, setDayOffUser] = useState(null);
@@ -151,26 +152,12 @@ const StaffManagement = () => {
     },
   });
 
-  const [updateUser, { loading: updating }] = useAppMutation(UPDATE_USER, {
-    successMessage: 'Staff details updated successfully',
-    onCompleted: () => {
-      setEditDialog(false);
-      setEditingUser(null);
-      refetch();
-    },
-  });
-
   const [toggleActive] = useAppMutation(TOGGLE_USER_ACTIVE, {
     // Dynamic toast text + info variant – zero manual notify boilerplate
     successMessage: (d) => `User ${d.toggleUserActive.isActive ? 'activated' : 'deactivated'}`,
     successVariant: 'info',
     onCompleted: () => refetch(),
   });
-
-  const handleOpenEdit = (user) => {
-    setEditingUser(user);
-    setEditDialog(true);
-  };
 
   const handleRegister = async (form) => {
     const input = {
@@ -184,25 +171,6 @@ const StaffManagement = () => {
     if (!input.officeId) delete input.officeId;
     if (!input.avatarBase64) delete input.avatarBase64;
     const result = await registerStaff({ variables: { input } });
-    if (result.error) throw new Error(result.errorMessage); // surface inside the form
-  };
-
-  const handleUpdate = async (form) => {
-    const input = {
-      name: form.name,
-      email: form.email,
-            role: form.role,
-      shiftStartTime: form.shiftStartTime || null,
-      shiftEndTime: form.shiftEndTime || null,
-      restrictedPages: Array.isArray(form.restrictedPages) ? form.restrictedPages : [],
-      leaveBalances: {
-        casual: parseInt(form.casual, 10),
-        sick: parseInt(form.sick, 10),
-        earned: parseInt(form.earned, 10),
-      },
-    };
-    if (form.officeId) input.officeId = form.officeId;
-    const result = await updateUser({ variables: { id: editingUser.id, input } });
     if (result.error) throw new Error(result.errorMessage); // surface inside the form
   };
 
@@ -234,6 +202,7 @@ const StaffManagement = () => {
       width: 180,
       valueGetter: (row) => row.assignedOffice?.name || 'Default Site',
       sortable: false,
+      stopRowClick: true,
       render: (row) => {
         const ta = row.temporaryAssignment;
         const taActive = ta?.office && ta.startDate && ta.endDate &&
@@ -262,6 +231,7 @@ const StaffManagement = () => {
       width: 100,
       align: 'center',
       sortable: false,
+      stopRowClick: true,
       render: (row) => (
         <Switch
           size="small"
@@ -276,11 +246,9 @@ const StaffManagement = () => {
       label: 'Actions',
       width: 100,
       sortable: false,
+      stopRowClick: true,
       render: (row) => (
         <Stack direction="row" spacing={0.5} alignItems="center">
-          <AppButton size="small" variant="outlined" onClick={() => handleOpenEdit(row)}>
-            Edit
-          </AppButton>
           <RowActions
             row={row}
             items={[
@@ -320,6 +288,7 @@ const StaffManagement = () => {
           loading={loading}
           error={error}
           onRetry={refetch}
+          onRowClick={isAdmin ? (row) => setProfileStaffId(row.id) : undefined}
         />
       </Card>
 
@@ -338,37 +307,6 @@ const StaffManagement = () => {
           submitLabel={registering ? 'Adding…' : 'Add Staff'}
           resetLabel="Clear"
         />
-      </GenericDialog>
-
-      {/* Edit Staff Details */}
-      <GenericDialog
-        open={editDialog}
-        onClose={() => !updating && setEditDialog(false)}
-        title="Edit Staff Details"
-        loading={updating}
-        maxWidth="sm"
-      >
-        {editingUser && (
-          <GenericFormEngine
-            key={editingUser.id}
-            fields={EDIT_STAFF_FIELDS(officeOptions)}
-            initialValues={{
-              name: editingUser.name ?? '',
-              email: editingUser.email ?? '',
-                            role: editingUser.role || 'STAFF',
-              officeId: editingUser.assignedOffice ? editingUser.assignedOffice.id : '',
-              casual: editingUser.leaveBalances?.casual ?? 0,
-              sick: editingUser.leaveBalances?.sick ?? 6,
-              earned: editingUser.leaveBalances?.earned ?? 0,
-              shiftStartTime: editingUser.shiftStartTime || '',
-              shiftEndTime: editingUser.shiftEndTime || '',
-              restrictedPages: editingUser.restrictedPages ?? [],
-            }}
-            onSubmit={handleUpdate}
-            submitLabel={updating ? 'Saving…' : 'Save Changes'}
-            resetLabel="Reset"
-          />
-        )}
       </GenericDialog>
 
       {/* Temporary Duty – punch at another site for a date range */}
@@ -403,6 +341,15 @@ const StaffManagement = () => {
         submitLabel="Grant Day Off"
       />
 
+      {/* Full-screen profile (admin only) – opens on row click */}
+      {isAdmin && (
+        <ProfileDialog
+          open={!!profileStaffId}
+          staffId={profileStaffId}
+          onClose={() => setProfileStaffId(null)}
+          onChanged={refetch}
+        />
+      )}
     </Box>
   );
 };
