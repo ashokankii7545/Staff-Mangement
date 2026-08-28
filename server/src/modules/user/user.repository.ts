@@ -44,6 +44,22 @@ export class UserRepository extends BaseRepository<typeof users> {
     return data;
   }
 
+  /**
+   * Normalize array-typed columns so the postgres.js driver never receives a
+   * non-array (e.g. a client sending `restrictedPages: {}` instead of `[]`,
+   * which would throw "value.map is not a function"). Applied before writes.
+   */
+  private normalizeArrays(data: Record<string, unknown>): Record<string, unknown> {
+    const out = { ...data };
+    for (const key of ['restrictedPages', 'faceEmbedding'] as const) {
+      if (key in out && !Array.isArray(out[key])) {
+        // Treat null/undefined/empty-object as an empty array; keep nothing else.
+        out[key] = [];
+      }
+    }
+    return out;
+  }
+
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
   public readonly queries = {
     findById: (id: string, _options: FindUserOptions = {}): Promise<IUserDocument | null> =>
@@ -131,7 +147,7 @@ export class UserRepository extends BaseRepository<typeof users> {
 
     create: (data: Partial<IUser>): Promise<IUserDocument> =>
       this.exec('create', async () => {
-        const values = await this.withHashedPassword(data);
+        const values = this.normalizeArrays(await this.withHashedPassword(data));
         return this.qInsert(values) as Promise<IUserDocument>;
       }),
 
@@ -145,7 +161,7 @@ export class UserRepository extends BaseRepository<typeof users> {
       _options: FindUserOptions = {},
     ): Promise<IUserDocument | null> =>
       this.exec('updateById', async () => {
-        const values = await this.withHashedPassword(update as { password?: string | null });
+        const values = this.normalizeArrays(await this.withHashedPassword(update as { password?: string | null }));
         return this.qUpdateById(id, values) as Promise<IUserDocument | null>;
       }),
 
@@ -208,6 +224,23 @@ export class UserRepository extends BaseRepository<typeof users> {
           .where(and(eq(users.approvalStatus, 'PENDING'), eq(users.role, 'STAFF')))
           .orderBy(asc(users.createdAt));
         return this.withIds(rows) as IUserDocument[];
+      }),
+
+    /** Store the SFace 128-d enrollment embedding (pgvector) for a user. */
+    setFaceVector: (userId: string, embedding: number[]): Promise<void> =>
+      this.exec('setFaceVector', async () => {
+        await this.db.update(users).set({ faceVector: embedding, updatedAt: new Date() }).where(eq(users.id, userId));
+      }),
+
+    /** Fetch just a user's enrolled face embedding (null when not enrolled). */
+    getFaceVector: (userId: string): Promise<number[] | null> =>
+      this.exec('getFaceVector', async () => {
+        const rows = await this.db
+          .select({ faceVector: users.faceVector })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+        return rows[0]?.faceVector ?? null;
       }),
 
     /** Persist the UI theme so it follows the user across devices. */

@@ -35,6 +35,12 @@ const createClient = (): postgres.Sql => {
     ssl: buildSslOption(),
     // Idle timeout keeps serverless functions from holding connections open.
     idle_timeout: isDirect ? 0 : 20,
+    // Recycle connections after 30 min so a long-idle (or laptop-sleep) socket
+    // can't go stale and hang a query for an hour before erroring.
+    max_lifetime: 60 * 30,
+    // Fail fast if a NEW connection can't be established (dead network / sleep),
+    // instead of blocking the caller indefinitely.
+    connect_timeout: 15,
   });
 };
 

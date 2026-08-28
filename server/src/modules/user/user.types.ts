@@ -61,6 +61,8 @@ export const userTypes = /* GraphQL */ `
     shiftStartTime: String
     shiftEndTime: String
     restrictedPages: [String!]
+    """Base64 profile photo – when provided, replaces avatar and re-enrolls the face."""
+    avatarBase64: String
   }
 
   type PaginatedUsers {

@@ -213,6 +213,30 @@ class AuthService {
     }
   }
 
+  /**
+   * Enroll (or re-enroll) a user's face: compute the SFace embedding from their
+   * photo via the face-service and store it in users.faceVector. Best-effort –
+   * never throws (a missing face-service or undetectable face just skips it).
+   */
+  private async enrollFace(userId: string, imageBase64: string): Promise<void> {
+    try {
+      const embedding = await getFaceEmbeddingFromBase64(imageBase64);
+      if (embedding) {
+        await userRepository.queries.setFaceVector(userId, embedding);
+        logger.info(`Face enrolled for user ${userId} (${embedding.length}-d)`);
+      } else {
+        logger.warn(`Face enrollment skipped for ${userId} – no embedding produced.`);
+      }
+    } catch (error) {
+      logger.error(`Face enrollment failed for ${userId}`, error);
+    }
+  }
+
+  /** Public wrapper so profile/photo-update flows can (re-)enroll a face. */
+  public enrollFaceForUser(userId: string, imageBase64: string): Promise<void> {
+    return this.enrollFace(userId, imageBase64);
+  }
+
   /** Public: resolve a login identifier to an avatar URL for the login screen. */
   public async checkAvatar(identifier: string): Promise<string | null> {
     const user = await userRepository.queries.findByIdentifier(identifier);
@@ -319,6 +343,9 @@ class AuthService {
       }),
     });
 
+    // Enroll the hire's face embedding from their photo (non-blocking, best-effort).
+    if (input.avatarBase64) void this.enrollFace(String(createdUser._id), input.avatarBase64);
+
     // Welcome the new hire over email (fire-and-forget – never block signup).
     void mailService.sendStaffWelcomeEmail(createdUser).catch((e) => logger.error(e));
     return createdUser;
@@ -368,6 +395,9 @@ class AuthService {
         };
       },
     });
+
+    // Enroll the pgvector face embedding from the signup photo (best-effort).
+    if (args.avatarBase64) void this.enrollFace(String(user._id), args.avatarBase64);
 
     // Send OTP email instead of notifying admins immediately
     void mailService.sendSignupOTPEmail(cleanEmail, user.name, otp).catch(e => logger.error(e));
@@ -512,7 +542,12 @@ class AuthService {
   public async requestPasswordReset(email: string): Promise<boolean> {
     logger.info(`Password reset requested for email: ${email}`);
     const user = await userRepository.queries.findByEmail(email);
-    if (!user) return true; // prevent enumeration
+    if (!user) {
+      // Anti-enumeration: still return success to the client, but log so an
+      // admin can tell a legit "no email arrived" from a wrong/unknown address.
+      logger.warn(`Password reset: no account found for "${email}" – no email sent.`);
+      return true;
+    }
     
     const resetToken = crypto.randomUUID();
     await userRepository.queries.updateById(String(user._id), {

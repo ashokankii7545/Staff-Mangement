@@ -80,6 +80,16 @@ describe('UserRepository (Postgres)', () => {
     expect(after?.leaveBalances?.casual).toBe(4); // 10 - 6, not -2
   });
 
+  it('updateById coerces a non-array restrictedPages ({}) to [] instead of crashing the driver', async () => {
+    const u = await makeUser();
+    // A client sending `restrictedPages: {}` (object, not array) must not throw
+    // "value.map is not a function" from the postgres.js text[] serializer.
+    const updated = await userRepository.queries.updateById(u.id, {
+      restrictedPages: {} as unknown as string[],
+    });
+    expect(updated?.restrictedPages).toEqual([]);
+  });
+
   it('deductLeaveBalanceIfAvailable fails when insufficient', async () => {
     const u = await makeUser({ leaveBalances: { casual: 1, sick: 0, earned: 0 } });
     const ok = await userRepository.queries.deductLeaveBalanceIfAvailable(u.id, 'casual', 5);

@@ -17,11 +17,22 @@ const videoConstraints = {
   facingMode: 'user',
 };
 
-const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo & Punch Now', allowUpload = true, requireCenteredFace = false }) => {
+// Head-turn liveness burst. Two guided phases (turn LEFT, then RIGHT), each
+// lasting PHASE_MS with a frame sampled every SAMPLE_MS. Liveness frames are
+// downscaled (yaw detection needs little detail) to keep the request small;
+// the final selfie is captured at full resolution separately.
+const PHASE_MS = 1600; // time given for each turn direction
+const SAMPLE_MS = 250; // gap between sampled liveness frames
+const LIVENESS_FRAME_SIZE = 240; // px, small = light payload
+
+const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo & Punch Now', allowUpload = true, requireCenteredFace = false, requireLiveness = false }) => {
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
   const [facingMode, setFacingMode] = useState('user');
   const [capturedImage, setCapturedImage] = useState(null);
+  // Head-turn burst UI state: null = idle, else a countdown/prompt string.
+  const [burstPrompt, setBurstPrompt] = useState(null);
+  const capturingRef = useRef(false);
 
   // ── LIVE FACE-CENTERING GUIDANCE ──────────────────────────────────────────
   // TinyFaceDetector (~190 KB, separate from the heavy punch-time models)
@@ -107,13 +118,57 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
   const faceGateBlocking =
     requireCenteredFace && ['INIT', 'NO_FACE', 'OFFCENTER', 'SIZE'].includes(faceStatus);
 
-  const capture = useCallback(() => {
-    if (webcamRef.current) {
-      const imageSrc = webcamRef.current.getScreenshot({ width: 640, height: 640 });
+  const snap = (size = 640) => webcamRef.current?.getScreenshot({ width: size, height: size }) || null;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /** Sample small liveness frames for `ms` while showing `prompt`. */
+  const samplePhase = async (prompt, ms, frames) => {
+    const ticks = Math.max(1, Math.round(ms / SAMPLE_MS));
+    for (let i = 0; i < ticks; i++) {
+      const secsLeft = Math.ceil(((ticks - i) * SAMPLE_MS) / 1000);
+      setBurstPrompt(`${prompt}  (${secsLeft}s)`);
+      const f = snap(LIVENESS_FRAME_SIZE);
+      if (f) frames.push(f);
+      // eslint-disable-next-line no-await-in-loop
+      await wait(SAMPLE_MS);
+    }
+  };
+
+  /**
+   * Capture path.
+   *  - requireLiveness OFF: single screenshot (unchanged behavior).
+   *  - requireLiveness ON: guided HEAD-TURN — a short "get ready", then TURN
+   *    LEFT for PHASE_MS, then TURN RIGHT for PHASE_MS, sampling small frames
+   *    throughout. The server confirms liveness from the head-yaw motion.
+   *    Finally a full-res selfie is taken. onCapture(selfie, frames).
+   */
+  const capture = useCallback(async () => {
+    if (!webcamRef.current || capturingRef.current) return;
+
+    if (!requireLiveness) {
+      const imageSrc = snap();
       setCapturedImage(imageSrc);
       onCapture(imageSrc);
+      return;
     }
-  }, [onCapture]);
+
+    capturingRef.current = true;
+    const frames = [];
+    try {
+      setBurstPrompt('Get ready — you will turn your head');
+      await wait(700);
+      await samplePhase('↩️ Slowly turn your head to the LEFT', PHASE_MS, frames);
+      await samplePhase('↪️ Now slowly turn to the RIGHT', PHASE_MS, frames);
+      setBurstPrompt('✓ Look straight — capturing');
+      await wait(400);
+      const selfie = snap(640); // full-res selfie for identity match
+      setCapturedImage(selfie);
+      onCapture(selfie, frames);
+    } finally {
+      capturingRef.current = false;
+      setBurstPrompt(null);
+    }
+  }, [onCapture, requireLiveness]);
 
   // AUTO-CAPTURE LOGIC (DISABLED BY USER REQUEST)
   const [autoCaptureTimer, setAutoCaptureTimer] = useState(null);
@@ -192,6 +247,15 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
         />
       </Paper>
 
+      {burstPrompt && (
+        <Typography
+          variant="caption"
+          sx={{ color: 'warning.main', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700 }}
+        >
+          {burstPrompt}
+        </Typography>
+      )}
+
       <Typography
         variant="caption"
         sx={{
@@ -217,7 +281,7 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
           fullWidth
           onClick={capture}
           variant="contained"
-          disabled={isPunching || faceGateBlocking}
+          disabled={isPunching || faceGateBlocking || !!burstPrompt}
           title={faceGateBlocking ? 'Center your face inside the circle first' : undefined}
           sx={{
             bgcolor: faceGateBlocking ? 'action.disabledBackground' : 'success.main',
@@ -230,7 +294,7 @@ const SelfieCapture = ({ onCapture, isPunching = false, buttonText = 'Take Photo
           }}
         >
           <CameraAltIcon sx={{ fontSize: 18, mr: 1, verticalAlign: 'text-bottom' }} />
-          {buttonText}
+          {burstPrompt ? 'Capturing…' : buttonText}
         </AppButton>
 
         {allowUpload && (

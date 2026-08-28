@@ -137,10 +137,18 @@ class MailService {
     }
   }
 
-  /** Generic branded sender used by every template-based email. */
-  public async sendTemplateEmail(to: string | null | undefined, options: EmailTemplateOptions): Promise<void> {
+  /**
+   * Generic branded sender used by every template-based email.
+   * `force: true` bypasses the `userUpdates` master switch – used for
+   * security-critical mails (e.g. password reset) that must always send.
+   */
+  public async sendTemplateEmail(
+    to: string | null | undefined,
+    options: EmailTemplateOptions,
+    { force = false }: { force?: boolean } = {},
+  ): Promise<void> {
     if (!to) return;
-    if (!(await this.notificationPrefEnabled('userUpdates'))) return;
+    if (!force && !(await this.notificationPrefEnabled('userUpdates'))) return;
     const branding = await this.getEmailBranding();
     await this.sendEmail({ to, subject: options.subject, html: await renderBrandEmail(options, branding) });
   }
@@ -241,15 +249,19 @@ class MailService {
 
   /** Password reset link mail – security flow, always template-branded. */
   public async sendPasswordResetEmail(email: string, resetToken: string): Promise<void> {
-    await this.sendTemplateEmail(email, {
-      subject: 'Reset your password – German Homeopathy',
-      heading: 'Password Reset Request',
-      introText:
-        'We received a request to reset the password for your account. Click the button below to choose a new one. This secure link expires in 1 hour.',
-      noteText:
-        'If you did not request a password reset, you can safely ignore this email – your current password keeps working.',
-      cta: { text: 'Reset Password', path: `/reset-password?token=${resetToken}` },
-    });
+    await this.sendTemplateEmail(
+      email,
+      {
+        subject: 'Reset your password – German Homeopathy',
+        heading: 'Password Reset Request',
+        introText:
+          'We received a request to reset the password for your account. Click the button below to choose a new one. This secure link expires in 1 hour.',
+        noteText:
+          'If you did not request a password reset, you can safely ignore this email – your current password keeps working.',
+        cta: { text: 'Reset Password', path: `/reset-password?token=${resetToken}` },
+      },
+      { force: true }, // security mail – always send, ignore the userUpdates toggle
+    );
   }
 
   /** Self-signup approved by an admin. */

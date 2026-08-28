@@ -1,4 +1,4 @@
-import { boolean, doublePrecision, index, jsonb, pgTable, real, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, doublePrecision, index, jsonb, pgTable, real, text, uuid } from 'drizzle-orm/pg-core';
 import { primaryId, timestamps } from './_shared.js';
 import { users } from './user.schema.js';
 import { offices } from './office.schema.js';
@@ -26,8 +26,12 @@ export interface VpnCheckDetailsJson {
 
 /**
  * Attendance punches (old Mongo `Attendance` collection).
- * The {user,date,type} unique index is the hard double-punch guard – a
- * duplicate surfaces as a friendly ConflictError in the repository.
+ * Zoho People-style multi-session model: a user may CLOCK_IN/CLOCK_OUT many
+ * times per day. Punches are plain time-ordered rows; a day's sessions are
+ * reconstructed by pairing consecutive in→out punches, and the day's total
+ * working time is the SUM of every session's duration. There is deliberately
+ * NO unique (user,date,type) constraint – multiple punches per type per day
+ * are expected. A composite (user,date) index keeps day lookups fast.
  */
 export const attendance = pgTable(
   'attendance',
@@ -54,7 +58,8 @@ export const attendance = pgTable(
     ...timestamps,
   },
   (t) => ({
-    userDateTypeUnique: uniqueIndex('attendance_user_date_type_unique').on(t.user, t.date, t.type),
+    // Multi-session: NOT unique. Fast lookups of a user's punches for a day.
+    userDateIdx: index('attendance_user_date_idx').on(t.user, t.date),
     dateIdx: index('attendance_date_idx').on(t.date),
   }),
 );

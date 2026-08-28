@@ -1,7 +1,26 @@
 import { sql } from 'drizzle-orm';
-import { boolean, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, customType, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { primaryId, timestamps } from './_shared.js';
 import { offices } from './office.schema.js';
+
+/**
+ * pgvector `vector(N)` custom type. The extension + column + HNSW index are
+ * provisioned by `scripts/enable-pgvector.mjs` (drizzle-kit can't emit the
+ * vector type); declaring it here keeps future `drizzle-kit generate` diffs
+ * from trying to drop the column. Values are read/written as number[].
+ */
+export const FACE_VECTOR_DIM = 128;
+const vector = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return `vector(${FACE_VECTOR_DIM})`;
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(',')}]`;
+  },
+  fromDriver(value: string): number[] {
+    return value.replace(/^\[|\]$/g, '').split(',').filter(Boolean).map(Number);
+  },
+});
 
 /** jsonb shape for temporaryAssignment (office is a uuid string, not ObjectId). */
 export interface TempAssignmentJson {
@@ -58,6 +77,8 @@ export const users = pgTable(
       .notNull()
       .default({ casual: 12, sick: 6, earned: 0 }),
     faceEmbedding: real('face_embedding').array().notNull().default(sql`'{}'::real[]`),
+    /** SFace 128-d enrollment embedding (pgvector). Provisioned via scripts/enable-pgvector.mjs. */
+    faceVector: vector('face_vector'),
     shiftStartTime: text('shift_start_time').notNull().default(''),
     shiftEndTime: text('shift_end_time').notNull().default(''),
     ...timestamps,

@@ -37,12 +37,29 @@ export const attendanceTypes = /* GraphQL */ `
     createdAt: DateTime
   }
 
+  """One check-in → check-out pair within a day (Zoho-style multi-session)."""
+  type AttendanceSession {
+    clockIn: Attendance!
+    """Null while the session is still open (clocked in, not yet out)."""
+    clockOut: Attendance
+    """Duration of this session in hours (0 while still open)."""
+    hours: Float!
+  }
+
   type AttendanceSummary {
     date: String!
     user: User!
+    """First clock-in of the day (kept for backward compatibility)."""
     clockIn: Attendance
+    """Last clock-out of the day (kept for backward compatibility)."""
     clockOut: Attendance
-
+    """Every check-in/out session for the day, in time order."""
+    sessions: [AttendanceSession!]!
+    """Number of sessions (open or completed)."""
+    sessionCount: Int!
+    """True when the last punch was a clock-in with no matching clock-out yet."""
+    hasOpenSession: Boolean!
+    """Sum of all completed session durations, in hours."""
     totalHours: Float
     status: AttendanceStatus!
   }
@@ -80,5 +97,7 @@ export const attendanceTypes = /* GraphQL */ `
     webRTCIPs: [String!]
     faceMatched: Boolean
     faceMatchScore: Float
+    """Burst of base64 frames for server-side head-turn liveness."""
+    livenessFrames: [String!]
   }
 `;
