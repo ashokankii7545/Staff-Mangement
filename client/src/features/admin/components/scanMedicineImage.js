@@ -6,7 +6,7 @@
  *   2. Separates the subject (medicine pack) via colour-distance thresholding.
  *   3. Auto-crops to the subject's bounding box (with padding).
  *   4. Applies a "scanned document" enhancement: background flattened to pure
- *      white, contrast stretched on the subject.
+ *      white; subject colours kept natural (only dim shots get a mild lift).
  *   5. Downscales to MAX_DIMENSION and re-encodes as compact JPEG.
  *
  * Pure canvas maths – zero new dependencies. Falls back to the original image
@@ -128,6 +128,10 @@ export const scanMedicineImage = async (dataUrl) => {
   const confident =
     maxX >= 0 && subjectRatio >= MIN_SUBJECT_RATIO && subjectRatio <= MAX_SUBJECT_RATIO;
 
+  // Not confident? (busy background, or subject blends into it) → hand back
+  // the ORIGINAL untouched. This guarantees a blank/white-out can never happen.
+  if (!confident) return dataUrl;
+
   // ── 3. Crop to subject (padding clamped to frame) ──
   let sx = 0;
   let sy = 0;
@@ -159,16 +163,18 @@ export const scanMedicineImage = async (dataUrl) => {
   const rd = region.data;
 
   // Contrast stretch: measure the subject's luminance range first.
-  let lumMin = 255;
-  let lumMax = 0;
+  let lumSum = 0;
+  let lumCount = 0;
   for (let i = 0; i < rd.length; i += 4) {
     if (dist2([rd[i], rd[i + 1], rd[i + 2]], bg) > BG_TOL2) {
-      const lum = 0.299 * rd[i] + 0.587 * rd[i + 1] + 0.114 * rd[i + 2];
-      if (lum < lumMin) lumMin = lum;
-      if (lum > lumMax) lumMax = lum;
+      lumSum += 0.299 * rd[i] + 0.587 * rd[i + 1] + 0.114 * rd[i + 2];
+      lumCount += 1;
     }
   }
-  const range = Math.max(1, lumMax - lumMin);
+  // Only lift exposure when the subject is genuinely dim (dark room shot).
+  // Otherwise leave subject colours untouched – no greying out.
+  const avgLum = lumCount ? lumSum / lumCount : 128;
+  const lift = avgLum < 100 ? Math.min(1.35, 118 / Math.max(1, avgLum)) : 1;
 
   for (let i = 0; i < rd.length; i += 4) {
     const px = [rd[i], rd[i + 1], rd[i + 2]];
@@ -177,11 +183,10 @@ export const scanMedicineImage = async (dataUrl) => {
       rd[i] = 255;
       rd[i + 1] = 255;
       rd[i + 2] = 255;
-    } else {
-      // Subject → stretch contrast around the measured range + mild lift.
+    } else if (lift > 1) {
+      // Dim subject → gentle, colour-preserving brightness lift only.
       for (let c = 0; c < 3; c += 1) {
-        const stretched = ((rd[i + c] - lumMin) / range) * 235 + 20;
-        rd[i + c] = Math.max(0, Math.min(255, Math.round(stretched)));
+        rd[i + c] = Math.max(0, Math.min(255, Math.round(rd[i + c] * lift)));
       }
     }
     rd[i + 3] = 255; // fully opaque
