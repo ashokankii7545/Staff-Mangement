@@ -45,6 +45,7 @@ export const NOTIFICATION_TYPES = [
   'DOCUMENT_DECISION',
   'DOCUMENT_REQUESTED',
   'GENERIC',
+  'ANNOUNCEMENT',
 ] as const;
 export type NotificationTypeUnion = (typeof NOTIFICATION_TYPES)[number];
 

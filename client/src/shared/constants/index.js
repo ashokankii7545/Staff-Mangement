@@ -73,6 +73,7 @@ export const NAV_ITEMS_ADMIN = [
   { label: 'Staff Management', path: '/staff', icon: 'People' },
   { label: 'Sites', path: '/offices', icon: 'LocationOn' },
   { label: 'Holidays', path: '/holidays', icon: 'Event' },
+  { label: 'Team Calendar', path: '/calendar', icon: 'CalendarMonth' },
   { label: 'Stock Requests', path: '/stock', icon: 'LocalPharmacy' },
   { label: 'Medicine Catalog', path: '/medicines', icon: 'Medication' },
   { label: 'Documents', path: '/documents', icon: 'FolderShared' },
@@ -98,6 +99,7 @@ export const PAGE_CATALOG = [
   { key: '/staff', label: 'Staff Management', icon: 'People' },
   { key: '/offices', label: 'Sites', icon: 'LocationOn' },
   { key: '/holidays', label: 'Holidays', icon: 'Event' },
+  { key: '/calendar', label: 'Team Calendar', icon: 'CalendarMonth' },
   { key: '/approvals', label: 'Approvals', icon: 'FactCheck' },
   { key: '/medicines', label: 'Medicine Catalog', icon: 'Medication' },
   { key: '/settings', label: 'Global Settings', icon: 'Settings' },
@@ -120,6 +122,7 @@ export const ROUTE_TITLES = {
   '/staff': 'Staff Management',
   '/offices': 'Sites',
   '/holidays': 'Holidays',
+  '/calendar': 'Team Calendar',
   '/approvals': 'Approvals',
   '/settings': 'Settings',
 };

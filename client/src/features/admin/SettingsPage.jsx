@@ -18,8 +18,10 @@ import SaveIcon from '@mui/icons-material/Save';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import BoltIcon from '@mui/icons-material/Bolt';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import { GET_SETTINGS, GET_PUBLIC_CONFIG } from '../../graphql/queries';
 import { UPDATE_SETTINGS } from '../../graphql/mutations';
+import SendAnnouncementDialog from './components/SendAnnouncementDialog';
 import { PageHeader, AppButton, useNotification } from '../../shared/ui';
 import Box from '@mui/material/Box';
 import Avatar from '@mui/material/Avatar';
@@ -59,6 +61,7 @@ const SettingsPage = () => {
   const { data, loading } = useAppQuery(GET_SETTINGS);
   const [form, setForm] = useState(DEFAULTS);
   const [hydrated, setHydrated] = useState(false);
+  const [announceOpen, setAnnounceOpen] = useState(false);
 
   // Hydrate the form once server settings arrive (never overwrite user edits).
   // Merge defensively so nested objects / arrays are never left undefined even
@@ -450,7 +453,14 @@ const SettingsPage = () => {
             Password-reset mails ALWAYS send – security flows can never be muted.
           </Alert>
 
-          <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
+          <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mt: 2 }}>
+            <AppButton
+              variant="outlined"
+              startIcon={<CampaignOutlinedIcon fontSize="small" />}
+              onClick={() => setAnnounceOpen(true)}
+            >
+              Send Announcement
+            </AppButton>
             <AppButton
               variant="contained"
               startIcon={<SaveIcon fontSize="small" />}
@@ -533,6 +543,13 @@ const SettingsPage = () => {
           </Stack>
         </CardContent>
       </Card>
+
+      {/* Master org-wide announcement from Settings – one compose form reaches
+          every staff member by email + in-app notification. */}
+      <SendAnnouncementDialog
+        open={announceOpen}
+        onClose={() => setAnnounceOpen(false)}
+      />
     </Stack>
   );
 };

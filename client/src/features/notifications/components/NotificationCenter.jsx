@@ -21,6 +21,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import { useSubscription } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -51,6 +52,7 @@ const TYPE_CONFIG = {
   ATTENDANCE_FLAGGED:       { icon: VpnLockIcon,            color: 'error' },
   TEMP_DUTY:                { icon: SwapHorizIcon,          color: 'info' },
   DAY_OFF:                  { icon: EventAvailableIcon,     color: 'secondary' },
+  ANNOUNCEMENT:             { icon: CampaignOutlinedIcon,   color: 'primary' },
   GENERIC:                  { icon: InfoOutlinedIcon,       color: 'default' },
 };
 

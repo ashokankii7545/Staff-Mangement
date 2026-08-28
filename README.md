@@ -14,6 +14,9 @@ Built with React + Material UI + GraphQL + Node.js + Supabase (Postgres).
 - 📊 **Real-time Dashboard** — Live stats, attendance trends, and activity timeline
 - 📅 **Attendance History** — Filterable data grid with selfie previews and export
 - 👥 **Staff Management** — Admin panel to manage employees and settings
+- 📣 **Admin Announcements** — Compose a message once; every staff member gets an **email + in-app push notification**
+- 🗓️ **Team Calendar** — Month view of approved leaves, holidays and day-offs for staffing planning
+- 📲 **PWA / Installable** — Home-screen install with offline shell (works through the built-in service worker)
 - 🎨 **Material Design** — Clean, responsive UI inspired by Keka HR
 
 ---

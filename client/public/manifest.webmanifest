@@ -1,0 +1,32 @@
+{
+  "name": "German Homeopathy - Staff Attendance",
+  "short_name": "Attendance",
+  "description": "Selfie-based staff attendance with GPS verification, leaves, medicine requests and real-time dashboards.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#002E6B",
+  "theme_color": "#005CE6",
+  "categories": ["business", "productivity", "health"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -554,6 +554,15 @@ export const REVOKE_DAY_OFF = gql`
   }
 `;
 
+// ── Admin announcement broadcast ─────────────────────────────────────────────
+// Sends an org-wide announcement email to every active staff member AND pushes
+// an in-app notification into each staff account's inbox.
+export const BROADCAST_EMAIL = gql`
+  mutation BroadcastEmail($subject: String!, $message: String!) {
+    broadcastEmail(subject: $subject, message: $message)
+  }
+`;
+
 // ── Staff Profile dialog (admin) ─────────────────────────────────────────────
 // Compensation + document-request operations used by StaffProfileDialog.
 // NOTE: these require matching backend resolvers/schema — they do not exist yet

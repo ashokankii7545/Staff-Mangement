@@ -33,6 +33,7 @@ import LocalPharmacyIcon from '@mui/icons-material/LocalPharmacy';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import MedicationIcon from '@mui/icons-material/Medication';
 import PersonIcon from '@mui/icons-material/Person';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useAuth } from '../shared/auth/AuthContext';
 import { usePageAccess } from '../shared/auth/hooks';
 import {
@@ -58,6 +59,7 @@ const iconMap = {
   FolderShared: FolderSharedIcon,
   Medication: MedicationIcon,
   Person: PersonIcon,
+  CalendarMonth: CalendarMonthIcon,
 };
 
 const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) => {
@@ -84,7 +86,7 @@ const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) =>
 
   const adminGroups = [
     { title: null, items: ['/'] },
-    { title: 'User Management', items: ['/staff', '/approvals', '/history', '/holidays'] },
+    { title: 'User Management', items: ['/staff', '/approvals', '/history', '/holidays', '/calendar'] },
     { title: 'Operations & Medical', items: ['/stock', '/medicines', '/offices', '/documents', '/settings'] }
   ];
 

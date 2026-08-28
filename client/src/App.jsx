@@ -99,6 +99,11 @@ const appRoutes = [
         load: () => import('./features/admin/HolidaysManagement'),
       },
       {
+        path: 'calendar',
+        meta: { requiresAuth: true, pageKey: '/calendar', allowedRoles: ['ADMIN'] },
+        load: () => import('./features/admin/TeamCalendar'),
+      },
+      {
         path: 'approvals',
         meta: { requiresAuth: true, pageKey: '/approvals', allowedRoles: ['ADMIN'] },
         load: () => import('./features/admin/ApprovalsPage'),

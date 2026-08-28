@@ -333,9 +333,27 @@ class UserService {
     return !!deleted;
   }
 
-  /** Org-wide announcement email to all active staff. */
+  /** Org-wide announcement email + in-app inbox push to all active approved staff. */
   public async broadcast(subject: string, message: string): Promise<boolean> {
     await mailService.sendBroadcastEmail(subject, message);
+
+    // In-app inbox push so staff see announcements in the Notification Center
+    // (and receive it in realtime via the notificationAdded subscription).
+    try {
+      const staff = await userRepository.queries.listActiveStaff();
+      if (staff.length > 0) {
+        await notificationService.push({
+          recipientIds: staff.map((s) => String(s._id)),
+          type: 'ANNOUNCEMENT',
+          title: subject,
+          message,
+          link: '/',
+        });
+      }
+    } catch (error) {
+      logger.error('broadcast in-app push failed', error);
+    }
+
     return true;
   }
 
