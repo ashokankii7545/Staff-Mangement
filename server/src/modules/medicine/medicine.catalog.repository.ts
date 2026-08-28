@@ -39,6 +39,61 @@ export class MedicineCatalogRepository extends BaseRepository<typeof medicineCat
         return this.withIds(rows) as MedicineCatalogDocument[];
       }),
 
+    /**
+     * Admin grid – server-side paginated + searchable. Mirrors the users
+     * paginated pattern: returns { data, pageInfo }.
+     */
+    listPaginated: (
+      pagination: { page?: number; limit?: number; search?: string } = {},
+      includeInactive = false,
+    ) =>
+      this.exec('listPaginated', async () => {
+        const page = Math.max(1, pagination.page || 1);
+        const limit = Math.max(1, pagination.limit || 10);
+        const offset = (page - 1) * limit;
+
+        const conditions = [];
+        if (!includeInactive) conditions.push(eq(medicineCatalog.isActive, true));
+        if (pagination.search && pagination.search.trim()) {
+          const pat = `%${escapeLike(pagination.search.trim())}%`;
+          conditions.push(
+            or(
+              ilike(medicineCatalog.name, pat),
+              ilike(medicineCatalog.genericName, pat),
+              ilike(medicineCatalog.manufacturer, pat),
+              ilike(medicineCatalog.strength, pat),
+            )!,
+          );
+        }
+        const where = conditions.length ? and(...conditions) : undefined;
+
+        const countBase = this.db.select({ count: sql<number>`count(*)::int` }).from(medicineCatalog);
+        const dataBase = this.db
+          .select()
+          .from(medicineCatalog)
+          .orderBy(asc(medicineCatalog.name))
+          .limit(limit)
+          .offset(offset);
+
+        const [countRows, data] = await Promise.all([
+          where ? countBase.where(where) : countBase,
+          where ? dataBase.where(where) : dataBase,
+        ]);
+
+        const totalCount = countRows[0]?.count ?? 0;
+        const totalPages = Math.ceil(totalCount / limit);
+
+        return {
+          data: this.withIds(data) as MedicineCatalogDocument[],
+          pageInfo: {
+            totalCount,
+            currentPage: page,
+            totalPages,
+            hasNextPage: page < totalPages,
+          },
+        };
+      }),
+
     /** Staff autocomplete – active entries only, optional text filter. */
     search: (term?: string): Promise<MedicineCatalogDocument[]> =>
       this.exec('search', async () => {
