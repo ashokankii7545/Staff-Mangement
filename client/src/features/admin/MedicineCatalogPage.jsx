@@ -14,7 +14,7 @@ import ConfirmDialog from '../../shared/ui/ConfirmDialog';
 import StatusBadge from '../../shared/ui/StatusBadge';
 import GenericDataGrid from '../../shared/ui/GenericDataGrid';
 import { useNotification } from '../../shared/ui';
-import { useAppQuery, useAppMutation } from '../../shared/hooks';
+import { useAppQuery, useAppMutation, usePersistentGridState } from '../../shared/hooks';
 import { GET_MEDICINES_PAGINATED } from '../../graphql/queries';
 import {
   CREATE_MEDICINE,
@@ -32,9 +32,7 @@ const MedicineCatalogPage = () => {
   const notify = useNotification();
 
   // ── Server-side pagination + search (shared GenericDataGrid pattern) ──────
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [search, setSearch] = useState('');
+    const { page, setPage, rowsPerPage, setRowsPerPage, search, setSearch } = usePersistentGridState('medicine-catalogue');
   const [showInactive, setShowInactive] = useState(false);
 
   const medicinesQuery = useAppQuery(GET_MEDICINES_PAGINATED, {

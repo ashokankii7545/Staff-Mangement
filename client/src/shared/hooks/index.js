@@ -14,4 +14,5 @@ export * from './useOnlineStatus';
 // ── Curated ahooks gateway (one sanctioned import surface) ──
 export * from './ahooks';
 
+export * from './usePersistentGridState';
 export * from './useFaceRecognition';

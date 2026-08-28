@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -106,18 +106,18 @@ export const GenericDataGrid = ({
   //    a fresh `columns` array EVERY render — the old "reset to all columns" effect
   //    wiped user toggles + state on every Apollo update. ──────────────────────
   const gridStateKey = stateKey || title || 'datagrid';
-  const storageKey = (k) => `gdg:${gridStateKey}:${k}`;
-  const readStorage = (k, fallback) => {
+  const gridStoragePrefix = `gdg:${gridStateKey}:`;
+  const readStorage = useCallback((k, fallback) => {
     try {
-      const v = localStorage.getItem(storageKey(k));
+      const v = localStorage.getItem(`${gridStoragePrefix}${k}`);
       return v !== null ? JSON.parse(v) : fallback;
     } catch {
       return fallback;
     }
-  };
-  const writeStorage = (k, v) => {
-    try { localStorage.setItem(storageKey(k), JSON.stringify(v)); } catch { /* quota/private */ }
-  };
+  }, [gridStoragePrefix]);
+  const writeStorage = useCallback((k, v) => {
+    try { localStorage.setItem(`${gridStoragePrefix}${k}`, JSON.stringify(v)); } catch { /* quota/private */ }
+  }, [gridStoragePrefix]);
 
   const [internalPage, setInternalPage] = useState(() => Number(readStorage('page', 0)) || 0);
   const [internalRowsPerPage, setInternalRowsPerPage] = useState(() => Number(readStorage('rpp', rowsPerPage)) || rowsPerPage);
@@ -151,12 +151,14 @@ export const GenericDataGrid = ({
   }, [debouncedSearchText, onSearch]);
 
   // Persist view-state to localStorage so it survives remount/refresh/nav.
-  useEffect(() => { writeStorage('page', internalPage); }, [internalPage, gridStateKey]);
-  useEffect(() => { writeStorage('rpp', internalRowsPerPage); }, [internalRowsPerPage, gridStateKey]);
-  useEffect(() => { writeStorage('search', searchText); }, [searchText, gridStateKey]);
-  useEffect(() => { writeStorage('sortBy', internalSortBy); }, [internalSortBy, gridStateKey]);
-  useEffect(() => { writeStorage('sortDir', internalSortDirection); }, [internalSortDirection, gridStateKey]);
-  useEffect(() => { writeStorage('cols', visibleColumns); }, [visibleColumns, gridStateKey]);
+  useEffect(() => {
+    writeStorage('page', internalPage);
+    writeStorage('rpp', internalRowsPerPage);
+    writeStorage('search', searchText);
+    writeStorage('sortBy', internalSortBy);
+    writeStorage('sortDir', internalSortDirection);
+    writeStorage('cols', visibleColumns);
+  }, [internalPage, internalRowsPerPage, searchText, internalSortBy, internalSortDirection, visibleColumns, writeStorage]);
 
   const isServerSide = !!totalCount && !!onPageChange;
   const currentPage = isServerSide ? page : internalPage;
@@ -192,8 +194,7 @@ export const GenericDataGrid = ({
         return 0;
       });
     }
-    return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        return result;
   }, [rows, debouncedSearchText, internalSortBy, internalSortDirection, isServerSide, columns]);
 
   const paginatedRows = useMemo(() => {
@@ -206,9 +207,11 @@ export const GenericDataGrid = ({
 
   // Keep the current page valid when the (client-side) row-set shrinks below it,
   // e.g. after a search filter or data load with fewer results.
+  // Skip while the row-set is empty (loading / no-match / server fetch) so the
+  // page isn't clamped to 0 and then stuck there once data arrives.
   useEffect(() => {
-    if (isServerSide || hidePagination) return;
-    const lastPageIndex = Math.max(0, Math.ceil((filteredRows.length || 1) / currentRowsPerPage) - 1);
+    if (isServerSide || hidePagination || filteredRows.length === 0) return;
+    const lastPageIndex = Math.max(0, Math.ceil(filteredRows.length / currentRowsPerPage) - 1);
     setInternalPage((p) => (p > lastPageIndex ? lastPageIndex : p));
   }, [filteredRows.length, currentRowsPerPage, isServerSide, hidePagination]);
 

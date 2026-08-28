@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { useAppQuery, useAppMutation } from '../../shared/hooks';
+import { useAppQuery, useAppMutation, usePersistentGridState } from '../../shared/hooks';
 import { useState } from 'react';
 
 import Stack from '@mui/material/Stack';
@@ -72,9 +72,7 @@ const EMPTY_TEMP_DUTY = { officeId: '', startDate: '', endDate: '', reason: '' }
 const EMPTY_DAY_OFF = { date: '', reason: '' };
 
 const StaffManagement = () => {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [search, setSearch] = useState('');
+    const { page, setPage, rowsPerPage, setRowsPerPage, search, setSearch } = usePersistentGridState('staff-roster');
 
   const { data, loading, error, refetch } = useAppQuery(GET_USERS, {
     variables: { 
