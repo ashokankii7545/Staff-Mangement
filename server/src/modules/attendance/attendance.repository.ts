@@ -34,7 +34,12 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
 
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
   public readonly queries = {
-    /** Legacy single-punch lookup (kept for callers that still need one row). */
+    /**
+     * Single-punch lookup. NOTE (multi-session): a day may hold multiple
+     * punches of the same type, so this returns only ONE (arbitrary) match and
+     * must NOT be used as a uniqueness guard. Prefer `listByUserDate` and pick
+     * the specific punch you need. Retained for narrow single-row lookups/tests.
+     */
     findByUserDateType: (
       userId: string,
       date: string,

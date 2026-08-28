@@ -176,8 +176,24 @@ class RegularizationService {
         createdAt: backdatedCreatedAt,
       });
 
-      const upsertPunch = async (type: 'CLOCK_IN' | 'CLOCK_OUT', when: Date) => {
-        const existing = await attendanceRepository.queries.findByUserDateType(userId, date, type);
+      // A regularization request carries ONE intended check-in + check-out for
+      // the day. Under the multi-session model a day may already hold several
+      // punches, so we deterministically adjust the day's OUTER boundary:
+      //   CLOCK_IN  → the EARLIEST clock-in of the day
+      //   CLOCK_OUT → the LATEST  clock-out of the day
+      // (create the punch if that type doesn't exist yet). This keeps the fix
+      // predictable regardless of how many sessions the day contains.
+      const dayPunches = await attendanceRepository.queries.listByUserDate(userId, date);
+      const clockIns = dayPunches.filter((p) => p.type === 'CLOCK_IN');
+      const clockOuts = dayPunches.filter((p) => p.type === 'CLOCK_OUT');
+      const byCreatedAsc = (a: typeof dayPunches[number], b: typeof dayPunches[number]) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+
+      const upsertPunch = async (
+        type: 'CLOCK_IN' | 'CLOCK_OUT',
+        when: Date,
+        existing: (typeof dayPunches)[number] | undefined,
+      ) => {
         if (!existing) {
           await attendanceRepository.queries.create({
             ...buildPunch(when),
@@ -194,8 +210,10 @@ class RegularizationService {
         }
       };
 
-      await upsertPunch('CLOCK_IN', checkInDateTime);
-      await upsertPunch('CLOCK_OUT', checkOutDateTime);
+      const earliestIn = [...clockIns].sort(byCreatedAsc)[0];
+      const latestOut = [...clockOuts].sort(byCreatedAsc).at(-1);
+      await upsertPunch('CLOCK_IN', checkInDateTime, earliestIn);
+      await upsertPunch('CLOCK_OUT', checkOutDateTime, latestOut);
     }
 
     pubsub.publish(PUBSUB_CHANNELS.REGULARIZATION_UPDATED, { regularizationUpdated: updatedReg });
