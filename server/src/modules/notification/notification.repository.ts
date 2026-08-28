@@ -155,6 +155,20 @@ export class NotificationRepository extends BaseRepository<typeof notifications>
           )!,
         ) as Promise<NotificationDocument | null>,
       ),
+
+    /**
+     * Generic de-dupe guard for any notification type – finds an existing row
+     * carrying `meta[key] = value` (used by the daily absent-alert job).
+     */
+    findByMetaKey: (type: string, metaKey: string, metaValue: string): Promise<NotificationDocument | null> =>
+      this.exec('findByMetaKey', () =>
+        this.qFindOne(
+          and(
+            eq(notifications.type, type),
+            sql`${notifications.meta} ->> ${metaKey} = ${metaValue}`,
+          )!,
+        ) as Promise<NotificationDocument | null>,
+      ),
   };
 }
 

@@ -20,6 +20,7 @@ import VpnLockIcon from '@mui/icons-material/VpnLock';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import PersonOffIcon from '@mui/icons-material/PersonOff';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import { useSubscription } from '@apollo/client';
@@ -50,6 +51,7 @@ const TYPE_CONFIG = {
   ATTENDANCE_DECISION:      { icon: null,                   color: 'success' },
   MEDICINE_DECISION:        { icon: null,                   color: 'success' },
   ATTENDANCE_FLAGGED:       { icon: VpnLockIcon,            color: 'error' },
+  ABSENT_ALERT:             { icon: PersonOffIcon,          color: 'error' },
   TEMP_DUTY:                { icon: SwapHorizIcon,          color: 'info' },
   DAY_OFF:                  { icon: EventAvailableIcon,     color: 'secondary' },
   ANNOUNCEMENT:             { icon: CampaignOutlinedIcon,   color: 'primary' },

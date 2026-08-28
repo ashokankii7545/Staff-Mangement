@@ -14,6 +14,7 @@ import { createBaseApp, attachGraphql } from './app.js';
 import { startRegularizationAutoApprover } from './jobs/regularization-auto-approve.job.js';
 import { startLeaveAccrualScheduler } from './jobs/leave-accrual.job.js';
 import { startPunchReminderScheduler } from './jobs/punch-reminder.job.js';
+import { startAbsentAlertScheduler } from './jobs/absent-alert.job.js';
 
 /**
  * ────────────────────────────────────────────────────────────────────────────
@@ -105,6 +106,7 @@ class Application {
       startRegularizationAutoApprover();
       startLeaveAccrualScheduler();
       startPunchReminderScheduler();
+      startAbsentAlertScheduler();
     });
 
     process.on('SIGINT', () => void this.shutdown());

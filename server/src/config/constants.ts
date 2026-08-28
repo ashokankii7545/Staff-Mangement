@@ -41,6 +41,7 @@ export const NOTIFICATION_TYPES = [
   'MEDICINE_REQUEST',
   'MEDICINE_DECISION',
   'PUNCH_REMINDER',
+  'ABSENT_ALERT',
   'DOCUMENT_UPLOADED',
   'DOCUMENT_DECISION',
   'DOCUMENT_REQUESTED',
@@ -115,4 +116,6 @@ export const DEFAULTS = {
   LATE_THRESHOLD_MINUTES: 15,
   GEOFENCE_RADIUS_METERS: 200,
   ORGANIZATION_NAME: 'EdgeAttendance',
+  /** Absence alert fires this many minutes after shift start (09:00 → 10:30). */
+  ABSENT_ALERT_OFFSET_MINUTES: 90,
 } as const;
