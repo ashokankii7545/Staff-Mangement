@@ -1,5 +1,6 @@
 import { useAppQuery } from '../../../shared/hooks';
 import React from 'react';
+import dayjs from 'dayjs';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -17,6 +18,13 @@ import { useAuth } from '../../../shared/auth/AuthContext';
 import { GET_SETTINGS, GET_OFFICES } from '../../../graphql/queries';
 import DateRangePicker from '../../../shared/ui/DateRangePicker';
 
+const greeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
 const AdminHeader = ({
   selectedOffice,
   onSelectOffice,
@@ -25,7 +33,7 @@ const AdminHeader = ({
   onAddStaff,
   onApplyLeave,
 }) => {
-  const { user: _user } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { data: settingsData } = useAppQuery(GET_SETTINGS);
   const { data: officesData } = useAppQuery(GET_OFFICES);
@@ -33,6 +41,8 @@ const AdminHeader = ({
   const settings = settingsData?.settings;
   const offices = officesData?.offices || [];
   const shiftText = settings ? `${settings.shiftStartTime || '09:00'} - ${settings.shiftEndTime || '18:00'}` : '09:00 - 18:00';
+  const firstName = (user?.name || 'Admin').split(' ')[0];
+  const orgName = settings?.organizationName || 'your organization';
 
   return (
     <Box
@@ -52,16 +62,19 @@ const AdminHeader = ({
       >
         {/* Left Side: Overview Title, Live Sync, and Filters */}
         <Box sx={{ width: { xs: '100%', md: 'auto' } }}>
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
-            <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
-              Attendance Overview
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.25 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
+              {greeting()}, {firstName}
             </Typography>
-            <StatusBadge 
-              status="PRESENT" 
-              label="Live Sync" 
+            <StatusBadge
+              status="PRESENT"
+              label="Live Sync"
               sx={{ border: '1px solid', borderColor: 'success.light' }}
             />
           </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            {dayjs().format('dddd, DD MMM YYYY')} · {orgName}
+          </Typography>
 
           {/* Operational Filter Row (Site Selector + Date Range Picker) */}
           <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>

@@ -343,7 +343,8 @@ const WhosInTodayBoard = ({ selectedOffice = 'ALL', dateRange }) => {
         </Stack>
       )}
 
-      {/* DataGrid – widget mode: dense, no toolbar (search above), no pagination */}
+      {/* DataGrid – dense; client-side pagination (roster can be long).
+          Search/tabs above already filter; the grid paginates the result. */}
       {attLoading || usersLoading ? (
         <TableSkeleton rowCount={4} columnCount={6} />
       ) : (
@@ -351,8 +352,8 @@ const WhosInTodayBoard = ({ selectedOffice = 'ALL', dateRange }) => {
           rows={filteredStaff}
           columns={columns}
           size="small"
-          hidePagination
           showToolbar={false}
+          rowsPerPage={10}
         />
       )}
 

@@ -3,7 +3,7 @@ import Stack from '@mui/material/Stack';
 import Grid from '@mui/material/Grid2';
 import dayjs from 'dayjs';
 import AdminHeader from './components/AdminHeader';
-import PendingApprovalsCard from './components/PendingApprovalsCard';
+import ActionCenter from './components/ActionCenter';
 import AdminStatCards from './components/AdminStatCards';
 import WhosInTodayBoard from './components/WhosInTodayBoard';
 import DashboardInsights from './components/DashboardInsights';
@@ -33,24 +33,22 @@ const AdminDashboard = () => {
         onApplyLeave={() => setApplyLeaveOpen(true)}
       />
 
-      {/* 2. Pending Approvals Triage Banner */}
-      <PendingApprovalsCard />
-
-      {/* 3. Real-Time Workforce Pulse KPI Metrics */}
+      {/* 2. KPIs – glanceable, clickable, deep-link to their page */}
       <AdminStatCards selectedOffice={selectedOffice} dateRange={dateRange} />
 
-      {/* 4. Main Operational Layout */}
+      {/* 3. Command layout: Action Center (what to do next) is the priority
+             panel top-left along the reading path; insights sit to the right. */}
       <Grid container spacing={2}>
-        {/* Left: Interactive Live Attendance Log */}
         <Grid size={{ xs: 12, lg: 8 }}>
-          <WhosInTodayBoard selectedOffice={selectedOffice} dateRange={dateRange} />
+          <ActionCenter />
         </Grid>
-
-        {/* Right: Trend & Upcoming Events Hub */}
         <Grid size={{ xs: 12, lg: 4 }}>
           <DashboardInsights />
         </Grid>
       </Grid>
+
+      {/* 4. Today at a glance – the live attendance board (full width) */}
+      <WhosInTodayBoard selectedOffice={selectedOffice} dateRange={dateRange} />
 
       {/* Action Modals */}
       <QuickAddStaffModal

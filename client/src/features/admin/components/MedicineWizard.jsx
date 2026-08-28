@@ -117,7 +117,11 @@ const MedicineWizard = ({ open, onClose, onSubmit, initialValues, mode = 'add', 
       onClose={() => !saving && onClose()}
       title={isView ? form.name || 'Medicine' : isEdit ? 'Edit Medicine' : 'Add Medicine'}
       subtitle={STEPS[step]}
-      maxWidth="sm"
+      fullScreen
+      sx={{ borderRadius: 0 }}
+      // Full-screen canvas, but keep the form itself in a comfortable centered
+      // column so single-column fields don't stretch edge-to-edge.
+      contentSx={{ '& > *': { maxWidth: 760, mx: 'auto' } }}
       loading={saving}
       steps={STEPS}
       activeStep={step}

@@ -11,11 +11,13 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import dayjs from 'dayjs';
+import { useNavigate } from 'react-router-dom';
 import StatCard from '../../../shared/ui/StatCard';
 import CardSkeleton from '../../../shared/ui/CardSkeleton';
 import { GET_DASHBOARD_STATS, GET_USERS, GET_ALL_ATTENDANCE, GET_SETTINGS } from '../../../graphql/queries';
 
 const AdminStatCards = ({ selectedOffice = 'ALL', dateRange }) => {
+  const navigate = useNavigate();
   const startDate = dateRange?.startDate || dayjs().format('YYYY-MM-DD');
   const endDate = dateRange?.endDate || dayjs().format('YYYY-MM-DD');
   const isToday = startDate === dayjs().format('YYYY-MM-DD') && endDate === dayjs().format('YYYY-MM-DD');
@@ -155,6 +157,10 @@ const AdminStatCards = ({ selectedOffice = 'ALL', dateRange }) => {
     },
   ];
 
+  // Each KPI deep-links to the page where the admin acts on it (research:
+  // turn metrics into next-best actions). Same order as `cards`.
+  const cardLinks = ['/staff', '/history', '/history', '/history'];
+
   return (
     <Grid container spacing={2}>
       {cards.map((c, idx) => (
@@ -167,6 +173,8 @@ const AdminStatCards = ({ selectedOffice = 'ALL', dateRange }) => {
             badgeBg={c.badgeBg}
             badgeColor={c.badgeColor}
             progress={c.progress}
+            icon={c.icon}
+            onClick={cardLinks[idx] ? () => navigate(cardLinks[idx]) : undefined}
           />
         </Grid>
       ))}
