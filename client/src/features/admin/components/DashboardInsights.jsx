@@ -11,8 +11,9 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useTheme } from '@mui/material/styles';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import dayjs from 'dayjs';
-import { GET_MONTHLY_TREND, GET_HOLIDAYS } from '../../../graphql/queries';
-import { ChartCard } from '../../../shared/ui';
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
+import { GET_MONTHLY_TREND, GET_HOLIDAYS, GET_RECENT_ACTIVITY } from '../../../graphql/queries';
+import { ChartCard, ActivityList, ActivityItem, EmptyState } from '../../../shared/ui';
 
 const DashboardInsights = () => {
   const theme = useTheme();
@@ -26,6 +27,13 @@ const DashboardInsights = () => {
   const { data: holidaysData, loading: holidaysLoading } = useAppQuery(GET_HOLIDAYS, {
     variables: { year: currentYear },
   });
+
+  const { data: activityData, loading: activityLoading } = useAppQuery(GET_RECENT_ACTIVITY, {
+    variables: { limit: 6 },
+    fetchPolicy: 'cache-and-network',
+    pollInterval: 15000,
+  });
+  const recentActivity = activityData?.recentActivity || [];
 
   const upcomingHolidays = (holidaysData?.holidays || [])
     .filter((h) => dayjs(h.date).isAfter(dayjs().subtract(1, 'day')))
@@ -154,6 +162,40 @@ const DashboardInsights = () => {
               );
             })}
           </Stack>
+        )}
+      </Card>
+
+      {/* 3. Recent Activity – live punch feed (was defined but unused) */}
+      <Card sx={{ p: 2 }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+          <HistoryToggleOffIcon sx={{ color: theme.palette.primary.main, fontSize: 16 }} />
+          <Typography variant="subtitle2" fontWeight={600}>
+            Recent Activity
+          </Typography>
+        </Stack>
+
+        {activityLoading && recentActivity.length === 0 ? (
+          <Stack spacing={1}>
+            <Skeleton height={38} />
+            <Skeleton height={38} />
+            <Skeleton height={38} />
+          </Stack>
+        ) : recentActivity.length === 0 ? (
+          <EmptyState compact title="No recent activity" description="Punches will show up here as they happen." />
+        ) : (
+          <ActivityList spacing={1.25}>
+            {recentActivity.map((a) => (
+              <ActivityItem
+                key={a.id}
+                title={a.user?.name || 'Staff'}
+                subtitle={`${a.type === 'CLOCK_IN' ? 'Clocked in' : 'Clocked out'} · ${dayjs(a.createdAt).format('hh:mm A')}${a.location?.branchName ? ` · ${a.location.branchName}` : ''}`}
+                avatarImg={a.user?.avatar}
+                avatarLetter={a.user?.name?.charAt(0)}
+                status={a.type === 'CLOCK_IN' ? 'PRESENT' : 'OFF_DUTY'}
+                statusLabel={a.type === 'CLOCK_IN' ? 'In' : 'Out'}
+              />
+            ))}
+          </ActivityList>
         )}
       </Card>
     </Stack>
