@@ -68,11 +68,7 @@ const appRoutes = [
         meta: { requiresAuth: true, pageKey: '/medicines', allowedRoles: ['ADMIN'] },
         load: () => import('./features/admin/MedicineCatalogPage'),
       },
-      {
-        path: 'documents',
-        meta: { requiresAuth: true, pageKey: '/documents' },
-        load: () => import('./features/documents/DocumentsPage'),
-      },
+      
       {
         path: 'admin',
         meta: { requiresAuth: true, pageKey: '/admin', allowedRoles: ['ADMIN'] },

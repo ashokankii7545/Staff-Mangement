@@ -82,7 +82,7 @@ const FieldRenderer = memo(({ field, control, errors, values, isSubmitting, disa
         name={name}
         control={control}
         render={({ field: f }) =>
-          render({ value: f.value, onChange: f.onChange, onBlur: f.onBlur, error, values })
+          render({ value: f.value, onChange: f.onChange, onBlur: f.onBlur, error, values, disabled: isDisabled })
         }
       />
     );

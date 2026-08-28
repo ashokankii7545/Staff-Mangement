@@ -83,13 +83,13 @@ const Sidebar = ({ open, onClose, variant = 'permanent', collapsed = false }) =>
   const adminGroups = [
     { title: null, items: ['/'] },
     { title: 'User Management', items: ['/staff', '/approvals', '/history', '/holidays'] },
-    { title: 'Operations & Medical', items: ['/stock', '/medicines', '/offices', '/documents', '/settings'] }
+    { title: 'Operations & Medical', items: ['/stock', '/medicines', '/offices', '/settings'] }
   ];
 
   const staffGroups = [
     { title: null, items: ['/', '/attendance'] },
     { title: 'My Records', items: ['/history', '/leaves'] },
-    { title: 'Operations', items: ['/stock', '/documents'] }
+    { title: 'Operations', items: ['/stock'] }
   ];
 
   const groups = isAdmin ? adminGroups : staffGroups;

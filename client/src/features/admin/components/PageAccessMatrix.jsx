@@ -41,10 +41,11 @@ const ICONS = {
  *
  * Wired into GenericFormEngine as a `custom` field inside Edit Staff.
  */
-const PageAccessMatrix = ({ value, onChange }) => {
+const PageAccessMatrix = ({ value, onChange, readOnly = false }) => {
   const restricted = Array.isArray(value) ? value : [];
 
   const toggle = (key, granted) => {
+    if (readOnly) return;
     const next = granted
       ? restricted.filter((k) => k !== key)
       : [...restricted, key];
@@ -57,7 +58,7 @@ const PageAccessMatrix = ({ value, onChange }) => {
         Page Access
       </Typography>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
-        Every page is OPEN by default. Switch a row OFF to withdraw it for this account.
+        Every page is OPEN by default. Switch a row OFF to withdraw it for this account.{readOnly ? ' (read-only view)' : ''}
       </Typography>
 
       <Stack spacing={0.5}>
@@ -68,7 +69,7 @@ const PageAccessMatrix = ({ value, onChange }) => {
             <Switch
               size="small"
               checked={granted}
-              disabled={locked}
+              disabled={locked || readOnly}
               onChange={(e) => toggle(key, e.target.checked)}
               aria-label={`Toggle ${label}`}
             />

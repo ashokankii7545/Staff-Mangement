@@ -9,6 +9,7 @@ export const GET_ME = gql`
       email
       role
       avatar
+      createdAt
       isActive
       themePreference
       restrictedPages
@@ -203,6 +204,42 @@ export const GET_USERS = gql`
         currentPage
         totalPages
         hasNextPage
+      }
+    }
+  }
+`;
+ 
+ export const GET_USER = gql`
+  query GetUser($id: ID!) {
+    user(id: $id) {
+      id
+      employeeId
+      name
+      email
+      role
+      avatar
+      isActive
+      restrictedPages
+      createdAt
+      shiftStartTime
+      shiftEndTime
+      assignedOffice {
+        id
+        name
+      }
+      temporaryAssignment {
+        office {
+          id
+          name
+        }
+        startDate
+        endDate
+        reason
+      }
+      leaveBalances {
+        casual
+        sick
+        earned
       }
     }
   }
@@ -568,6 +605,52 @@ export const GET_MY_NOTIFICATIONS = gql`
 export const GET_UNREAD_NOTIFICATIONS_COUNT = gql`
   query GetUnreadNotificationsCount {
     unreadNotificationsCount
+  }
+`;
+
+/* ── Payroll (salary slips + bonus) – employer-managed FORM records ─────── */
+
+export const GET_SALARY_RECORDS = gql`
+  query GetSalaryRecords($userId: ID!) {
+    salaryRecords(userId: $userId) {
+      id
+      month
+      basic
+      hra
+      allowances
+      deductions
+      netPay
+      notes
+      createdAt
+    }
+  }
+`;
+
+export const GET_BONUS_RECORDS = gql`
+  query GetBonusRecords($userId: ID!) {
+    bonusRecords(userId: $userId) {
+      id
+      month
+      amount
+      reason
+      createdAt
+    }
+  }
+`;
+
+export const GET_DOCUMENT_REQUESTS = gql`
+  query GetDocumentRequests($userId: ID!) {
+    documentRequests(userId: $userId) {
+      id
+      category
+      note
+      status
+      requestedBy {
+        id
+        name
+      }
+      createdAt
+    }
   }
 `;
 

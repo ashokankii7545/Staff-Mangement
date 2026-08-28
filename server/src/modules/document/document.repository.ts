@@ -1,10 +1,16 @@
 import { desc, eq } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
 import { populateRefs, populateRefsOne } from '../../shared/repository/populate.util.js';
-import { documents } from '../../db/schema/document.schema.js';
-import type { IStaffDocument, StaffDocumentModelDoc } from './document.model.js';
+import { documents, documentRequests } from '../../db/schema/document.schema.js';
+import type {
+  IStaffDocument,
+  StaffDocumentModelDoc,
+  IDocumentRequest,
+  DocumentRequestModelDoc,
+} from './document.model.js';
 
 const REFS = { uploadedBy: 'user', reviewedBy: 'user' } as const;
+const REQUEST_REFS = { requestedBy: 'user' } as const;
 
 /**
  * DocumentRepository – staff document vault data access (Postgres/Drizzle).
@@ -66,6 +72,54 @@ export class DocumentRepository extends BaseRepository<typeof documents> {
       this.exec('updateById', async () => {
         const row = (await this.qUpdateById(id, patch)) as StaffDocumentModelDoc | null;
         return populateRefsOne(row, REFS) as Promise<StaffDocumentModelDoc | null>;
+      }),
+
+    // ── Document requests (admin asks staff to upload something) ──────────
+    listRequestsByUser: (userId: string): Promise<DocumentRequestModelDoc[]> =>
+      this.exec('listRequestsByUser', async () => {
+        const rows = await this.db
+          .select()
+          .from(documentRequests)
+          .where(eq(documentRequests.userId, userId))
+          .orderBy(desc(documentRequests.createdAt));
+        return populateRefs(this.withIds(rows), REQUEST_REFS) as Promise<DocumentRequestModelDoc[]>;
+      }),
+
+    createRequest: (data: Partial<IDocumentRequest>): Promise<DocumentRequestModelDoc> =>
+      this.exec('createRequest', async () => {
+        const rows = await this.db.insert(documentRequests).values(data as never).returning();
+        return this.withIds(rows)[0] as DocumentRequestModelDoc;
+      }),
+
+    findRequestById: (id: string): Promise<DocumentRequestModelDoc | null> =>
+      this.exec('findRequestById', async () => {
+        const rows = await this.db
+          .select()
+          .from(documentRequests)
+          .where(eq(documentRequests.id, id))
+          .limit(1);
+        return (this.withIds(rows)[0] as DocumentRequestModelDoc) ?? null;
+      }),
+
+    updateRequestById: (id: string, patch: Partial<IDocumentRequest>): Promise<DocumentRequestModelDoc | null> =>
+      this.exec('updateRequestById', async () => {
+        const rows = await this.db
+          .update(documentRequests)
+          .set({ ...patch, updatedAt: new Date() } as never)
+          .where(eq(documentRequests.id, id))
+          .returning();
+        return (this.withIds(rows)[0] as DocumentRequestModelDoc) ?? null;
+      }),
+
+    /** Reopen any request that was fulfilled by the given document (e.g. doc deleted). */
+    revertRequestByDocument: (documentId: string): Promise<number> =>
+      this.exec('revertRequestByDocument', async () => {
+        const rows = await this.db
+          .update(documentRequests)
+          .set({ status: 'PENDING', fulfilledDocumentId: null, updatedAt: new Date() })
+          .where(eq(documentRequests.fulfilledDocumentId, documentId))
+          .returning();
+        return rows.length;
       }),
   };
 }

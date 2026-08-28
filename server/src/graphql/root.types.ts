@@ -27,6 +27,12 @@ export const rootTypes = /* GraphQL */ `
     weeklyAttendance: [AttendanceSummary!]!
     myDocuments: [StaffDocument!]!
     allDocuments: [StaffDocument!]!
+    """Payroll salary slips for one staff member (admin or self)"""
+    salaryRecords(userId: ID!): [SalaryRecord!]!
+    """One-time bonuses for one staff member (admin or self)"""
+    bonusRecords(userId: ID!): [BonusRecord!]!
+    """Admin-issued document requests for one staff member (admin or self)"""
+    documentRequests(userId: ID!): [DocumentRequest!]!
     monthlyTrend(month: Int!, year: Int!): [DailyTrend!]!
     settings: Settings!
     recentActivity(limit: Int): [Attendance!]!
@@ -80,6 +86,16 @@ export const rootTypes = /* GraphQL */ `
     uploadDocument(input: UploadDocumentInput!): StaffDocument!
     deleteMyDocument(id: ID!): Boolean!
     reviewDocument(id: ID!, status: ApprovalStatus!, adminFeedback: String): StaffDocument!
+
+    """Admin asks a staff member to upload a document"""
+    requestDocument(userId: ID!, input: DocumentRequestInput!): DocumentRequest!
+    cancelDocumentRequest(id: ID!): Boolean!
+
+    """Payroll – admin fills the salary/bonus FORM; staff view read-only"""
+    createSalaryRecord(userId: ID!, input: SalaryRecordInput!): SalaryRecord!
+    deleteSalaryRecord(id: ID!): Boolean!
+    createBonusRecord(userId: ID!, input: BonusRecordInput!): BonusRecord!
+    deleteBonusRecord(id: ID!): Boolean!
     """Public self-signup — account stays UNVERIFIED until OTP is verified"""
     signup(input: SignUpInput!): SignupResult!
     verifyEmailOTP(email: String!, otp: String!): DefaultResponse!

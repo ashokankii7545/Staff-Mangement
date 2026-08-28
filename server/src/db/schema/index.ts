@@ -12,6 +12,7 @@ export * from './attendance.schema.js';
 export * from './leave.schema.js';
 export * from './day-off.schema.js';
 export * from './document.schema.js';
+export * from './salary.schema.js';
 export * from './medicine.schema.js';
 export * from './notification.schema.js';
 export * from './regularization.schema.js';

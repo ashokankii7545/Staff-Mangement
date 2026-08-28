@@ -17,4 +17,19 @@ export const documentTypes = /* GraphQL */ `
     category: String
     fileBase64: String!
   }
+
+  """Admin's request for a staff member to upload a document"""
+  type DocumentRequest {
+    id: ID!
+    category: String!
+    note: String
+    status: String!
+    requestedBy: User
+    createdAt: DateTime
+  }
+
+  input DocumentRequestInput {
+    category: String
+    note: String
+  }
 `;

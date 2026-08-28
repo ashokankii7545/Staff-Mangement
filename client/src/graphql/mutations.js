@@ -286,9 +286,61 @@ export const UPLOAD_DOCUMENT = gql`
   }
 `;
 
+/* ── Payroll – admin fills the salary/bonus FORM for a staff member ─────── */
+
+export const CREATE_SALARY_RECORD = gql`
+  mutation CreateSalaryRecord($userId: ID!, $input: SalaryRecordInput!) {
+    createSalaryRecord(userId: $userId, input: $input) {
+      id
+      month
+      netPay
+    }
+  }
+`;
+
+export const DELETE_SALARY_RECORD = gql`
+  mutation DeleteSalaryRecord($id: ID!) {
+    deleteSalaryRecord(id: $id)
+  }
+`;
+
+export const CREATE_BONUS_RECORD = gql`
+  mutation CreateBonusRecord($userId: ID!, $input: BonusRecordInput!) {
+    createBonusRecord(userId: $userId, input: $input) {
+      id
+      month
+      amount
+    }
+  }
+`;
+
+export const DELETE_BONUS_RECORD = gql`
+  mutation DeleteBonusRecord($id: ID!) {
+    deleteBonusRecord(id: $id)
+  }
+`;
+
 export const DELETE_MY_DOCUMENT = gql`
   mutation DeleteMyDocument($id: ID!) {
     deleteMyDocument(id: $id)
+  }
+`;
+
+export const REQUEST_DOCUMENT = gql`
+  mutation RequestDocument($userId: ID!, $input: DocumentRequestInput!) {
+    requestDocument(userId: $userId, input: $input) {
+      id
+      category
+      note
+      status
+      createdAt
+    }
+  }
+`;
+
+export const CANCEL_DOCUMENT_REQUEST = gql`
+  mutation CancelDocumentRequest($id: ID!) {
+    cancelDocumentRequest(id: $id)
   }
 `;
 

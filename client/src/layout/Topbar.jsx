@@ -35,6 +35,7 @@ import { GenericDialog, GenericFormEngine, useNotification } from '../shared/ui'
 import { CHANGE_PASSWORD } from '../graphql/mutations';
 import { z } from 'zod';
 import LockResetOutlinedIcon from '@mui/icons-material/LockResetOutlined';
+import ProfileDialog from '../features/admin/components/ProfileDialog';
 
 const PASSWORD_FIELDS = [
   { name: 'currentPassword', type: 'password', label: 'Current Password (skip if you sign in with Google)', gridSize: { xs: 12 } },
@@ -68,6 +69,7 @@ const Topbar = ({ onMenuClick, onToggleSidebar, sidebarCollapsed = false }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const menuOpen = Boolean(anchorEl);
   const [pwOpen, setPwOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const notify = useNotification();
 
   const [changePassword, { loading: changingPw }] = useAppMutation(CHANGE_PASSWORD, {
@@ -209,6 +211,19 @@ const Topbar = ({ onMenuClick, onToggleSidebar, sidebarCollapsed = false }) => {
 
             <Divider sx={{ my: 0.5 }} />
 
+            <MenuItem
+              onClick={() => {
+                handleMenuClose();
+                setProfileOpen(true);
+              }}
+              sx={{ borderRadius: 1.5, py: 1 }}
+            >
+              <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>
+                <PersonOutlineIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText primary="My Profile" primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: 500 }} />
+            </MenuItem>
+
             {isAdmin ? (
               <MenuItem onClick={() => handleNavigate('/settings')} sx={{ borderRadius: 1.5, py: 1 }}>
                 <ListItemIcon sx={{ minWidth: 32, color: 'text.secondary' }}>
@@ -309,6 +324,13 @@ const Topbar = ({ onMenuClick, onToggleSidebar, sidebarCollapsed = false }) => {
           }}
         />
       </GenericDialog>
+
+      {/* My Profile – Workday-style details + documents/salary/bonus */}
+      <ProfileDialog
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        user={user}
+      />
     </>
   );
 };

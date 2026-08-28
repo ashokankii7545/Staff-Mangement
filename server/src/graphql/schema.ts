@@ -10,6 +10,7 @@ import { holidayTypes } from '../modules/holiday/holiday.types.js';
 import { leaveTypes } from '../modules/leave/leave.types.js';
 import { medicineTypes } from '../modules/medicine/medicine.types.js';
 import { documentTypes } from '../modules/document/document.types.js';
+import { salaryTypes } from '../modules/salary/salary.types.js';
 import { regularizationTypes } from '../modules/regularization/regularization.types.js';
 import { notificationTypes } from '../modules/notification/notification.types.js';
 import { rootTypes } from './root.types.js';
@@ -32,6 +33,7 @@ export const schema = makeExecutableSchema({
     leaveTypes,
     medicineTypes,
     documentTypes,
+    salaryTypes,
     regularizationTypes,
     notificationTypes,
     rootTypes,

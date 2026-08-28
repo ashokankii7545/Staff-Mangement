@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import StaffProfileDialog from './components/StaffProfileDialog';
 import { useAppQuery, useAppMutation } from '../../shared/hooks';
 import { useState } from 'react';
 
@@ -13,7 +14,6 @@ import GenericDataGrid from '../../shared/ui/GenericDataGrid';
 import { GET_USERS, GET_OFFICES } from '../../graphql/queries';
 import {
   TOGGLE_USER_ACTIVE,
-  UPDATE_USER,
   REGISTER_STAFF,
   ASSIGN_TEMP_DUTY,
   CLEAR_TEMP_DUTY,
@@ -31,7 +31,6 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 //    Quick-Add modal and this page can never drift apart again ──
 import {
   ADD_STAFF_FIELDS,
-  EDIT_STAFF_FIELDS,
   BLANK_STAFF_FORM as BLANK_FORM,
 } from './staffFormConfig';
 
@@ -72,6 +71,8 @@ const EMPTY_TEMP_DUTY = { officeId: '', startDate: '', endDate: '', reason: '' }
 const EMPTY_DAY_OFF = { date: '', reason: '' };
 
 const StaffManagement = () => {
+  const [profileUserId, setProfileUserId] = useState(null);
+  const openProfile = (row) => setProfileUserId(row.id);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState('');
@@ -88,8 +89,6 @@ const StaffManagement = () => {
 
   const { data: officeData } = useAppQuery(GET_OFFICES);
   const [addDialog, setAddDialog] = useState(false);
-  const [editDialog, setEditDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
   // Row action dialogs
   const [tempDutyUser, setTempDutyUser] = useState(null);
   const [dayOffUser, setDayOffUser] = useState(null);
@@ -151,26 +150,12 @@ const StaffManagement = () => {
     },
   });
 
-  const [updateUser, { loading: updating }] = useAppMutation(UPDATE_USER, {
-    successMessage: 'Staff details updated successfully',
-    onCompleted: () => {
-      setEditDialog(false);
-      setEditingUser(null);
-      refetch();
-    },
-  });
-
   const [toggleActive] = useAppMutation(TOGGLE_USER_ACTIVE, {
     // Dynamic toast text + info variant – zero manual notify boilerplate
     successMessage: (d) => `User ${d.toggleUserActive.isActive ? 'activated' : 'deactivated'}`,
     successVariant: 'info',
     onCompleted: () => refetch(),
   });
-
-  const handleOpenEdit = (user) => {
-    setEditingUser(user);
-    setEditDialog(true);
-  };
 
   const handleRegister = async (form) => {
     const input = {
@@ -187,25 +172,6 @@ const StaffManagement = () => {
     if (result.error) throw new Error(result.errorMessage); // surface inside the form
   };
 
-  const handleUpdate = async (form) => {
-    const input = {
-      name: form.name,
-      email: form.email,
-            role: form.role,
-      shiftStartTime: form.shiftStartTime || null,
-      shiftEndTime: form.shiftEndTime || null,
-      restrictedPages: Array.isArray(form.restrictedPages) ? form.restrictedPages : [],
-      leaveBalances: {
-        casual: parseInt(form.casual, 10),
-        sick: parseInt(form.sick, 10),
-        earned: parseInt(form.earned, 10),
-      },
-    };
-    if (form.officeId) input.officeId = form.officeId;
-    const result = await updateUser({ variables: { id: editingUser.id, input } });
-    if (result.error) throw new Error(result.errorMessage); // surface inside the form
-  };
-
   const columns = [
     {
       id: 'employeeId',
@@ -213,7 +179,16 @@ const StaffManagement = () => {
       width: 140,
       render: (row) => <MonoId value={row.employeeId} />,
     },
-    { id: 'name', label: 'Name', width: 200 },
+    {
+      id: 'name',
+      label: 'Name',
+      width: 200,
+      // Whole-row click opens the staff profile (GenericDataGrid onRowClick).
+      // Plain text keeps the row looking like one clickable surface.
+      render: (row) => (
+        <Typography variant="body2" fontWeight={500}>{row.name}</Typography>
+      ),
+    },
     { id: 'email', label: 'Email', width: 220, sortable: false },
         {
       id: 'role',
@@ -278,9 +253,6 @@ const StaffManagement = () => {
       sortable: false,
       render: (row) => (
         <Stack direction="row" spacing={0.5} alignItems="center">
-          <AppButton size="small" variant="outlined" onClick={() => handleOpenEdit(row)}>
-            Edit
-          </AppButton>
           <RowActions
             row={row}
             items={[
@@ -320,6 +292,7 @@ const StaffManagement = () => {
           loading={loading}
           error={error}
           onRetry={refetch}
+          onRowClick={openProfile}
         />
       </Card>
 
@@ -338,37 +311,6 @@ const StaffManagement = () => {
           submitLabel={registering ? 'Adding…' : 'Add Staff'}
           resetLabel="Clear"
         />
-      </GenericDialog>
-
-      {/* Edit Staff Details */}
-      <GenericDialog
-        open={editDialog}
-        onClose={() => !updating && setEditDialog(false)}
-        title="Edit Staff Details"
-        loading={updating}
-        maxWidth="sm"
-      >
-        {editingUser && (
-          <GenericFormEngine
-            key={editingUser.id}
-            fields={EDIT_STAFF_FIELDS(officeOptions)}
-            initialValues={{
-              name: editingUser.name ?? '',
-              email: editingUser.email ?? '',
-                            role: editingUser.role || 'STAFF',
-              officeId: editingUser.assignedOffice ? editingUser.assignedOffice.id : '',
-              casual: editingUser.leaveBalances?.casual ?? 0,
-              sick: editingUser.leaveBalances?.sick ?? 6,
-              earned: editingUser.leaveBalances?.earned ?? 0,
-              shiftStartTime: editingUser.shiftStartTime || '',
-              shiftEndTime: editingUser.shiftEndTime || '',
-              restrictedPages: editingUser.restrictedPages ?? [],
-            }}
-            onSubmit={handleUpdate}
-            submitLabel={updating ? 'Saving…' : 'Save Changes'}
-            resetLabel="Reset"
-          />
-        )}
       </GenericDialog>
 
       {/* Temporary Duty – punch at another site for a date range */}
@@ -403,6 +345,8 @@ const StaffManagement = () => {
         submitLabel="Grant Day Off"
       />
 
+      {/* Full-screen profile dialog – opens on row click, NO route change */}
+      <StaffProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />
     </Box>
   );
 };

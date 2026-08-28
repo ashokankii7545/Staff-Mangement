@@ -62,7 +62,6 @@ export const NAV_ITEMS_STAFF = [
   { label: 'Stock Requests', path: '/stock', icon: 'LocalPharmacy' },
   { label: 'My History', path: '/history', icon: 'History' },
   { label: 'My Leaves', path: '/leaves', icon: 'EventNote' },
-  { label: 'My Documents', path: '/documents', icon: 'FolderShared' },
 ];
 
 export const NAV_ITEMS_ADMIN = [
@@ -74,7 +73,6 @@ export const NAV_ITEMS_ADMIN = [
   { label: 'Holidays', path: '/holidays', icon: 'Event' },
   { label: 'Stock Requests', path: '/stock', icon: 'LocalPharmacy' },
   { label: 'Medicine Catalog', path: '/medicines', icon: 'Medication' },
-  { label: 'Documents', path: '/documents', icon: 'FolderShared' },
   { label: 'Settings', path: '/settings', icon: 'Settings' },
 ];
 
@@ -92,7 +90,6 @@ export const PAGE_CATALOG = [
   { key: '/history', label: 'History / Records', icon: 'History' },
   { key: '/leaves', label: 'My Leaves', icon: 'EventNote' },
   { key: '/stock', label: 'Stock Requests', icon: 'LocalPharmacy' },
-  { key: '/documents', label: 'Documents', icon: 'FolderShared' },
   { key: '/admin', label: 'Admin Overview', icon: 'AdminPanelSettings' },
   { key: '/staff', label: 'Staff Management', icon: 'People' },
   { key: '/offices', label: 'Sites', icon: 'LocationOn' },
@@ -114,7 +111,6 @@ export const ROUTE_TITLES = {
   '/leaves': 'My Leaves',
   '/stock': 'Stock Requests',
   '/medicines': 'Medicine Catalog',
-  '/documents': 'Documents',
   '/admin': 'Admin Overview',
   '/staff': 'Staff Management',
   '/offices': 'Sites',

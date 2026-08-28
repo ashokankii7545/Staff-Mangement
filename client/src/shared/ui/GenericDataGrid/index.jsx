@@ -96,6 +96,12 @@ export const GenericDataGrid = ({
   hidePagination = false,
   /** Called when the user taps Retry on the error state (falls back to reload) */
   onRetry,
+  /**
+   * Click-anywhere on a data row → callback with the whole row.
+   * Best for opening a detail drill-in (e.g. Staff profile). Gives hover
+   * affordance so it reads as clickable without hijacking internal controls.
+   */
+  onRowClick,
 }) => {
   const [internalPage, setInternalPage] = useState(0);
   const [internalRowsPerPage, setInternalRowsPerPage] = useState(rowsPerPage);
@@ -153,7 +159,6 @@ export const GenericDataGrid = ({
       });
     }
     return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, debouncedSearchText, internalSortBy, internalSortDirection, isServerSide, columns]);
 
   const paginatedRows = useMemo(() => {
@@ -373,7 +378,17 @@ export const GenericDataGrid = ({
           <TableHead>{renderHeadCells()}</TableHead>
           <TableBody>
             {paginatedRows.map((row) => (
-              <TableRow key={row.id} hover selected={selectedIds.includes(row.id)}>
+              <TableRow
+                key={row.id}
+                hover
+                selected={selectedIds.includes(row.id)}
+                onClick={onRowClick ? (event) => {
+                  if (!event.target.closest('button, a, input, label, [role="checkbox"], .MuiSwitch-root, [data-rowx]')) {
+                    onRowClick(row);
+                  }
+                } : undefined}
+                sx={onRowClick ? { cursor: 'pointer', '& td': { py: 0.8 } } : undefined}
+              >
                 {selectable && (
                   <TableCell padding="checkbox">
                     <Checkbox
