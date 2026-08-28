@@ -179,6 +179,14 @@ class MedicineService {
     return medicineCatalogRepository.queries.search(search);
   }
 
+  /** Admin grid – server-side paginated + searchable catalogue. */
+  public listMedicinesPaginated(
+    pagination: { page?: number; limit?: number; search?: string } | undefined,
+    includeInactive: boolean,
+  ) {
+    return medicineCatalogRepository.queries.listPaginated(pagination ?? {}, includeInactive);
+  }
+
   /** Admin adds a medicine to the master catalogue. */
   public async createMedicine(
     input: MedicineCatalogInputShape,

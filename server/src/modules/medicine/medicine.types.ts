@@ -76,6 +76,12 @@ export const medicineTypes = /* GraphQL */ `
     updatedAt: DateTime
   }
 
+  """Server-paginated catalogue page (admin grid)."""
+  type PaginatedMedicines {
+    data: [MedicineCatalog!]!
+    pageInfo: PageInfo!
+  }
+
   input MedicineCatalogInput {
     name: String!
     genericName: String

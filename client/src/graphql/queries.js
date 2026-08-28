@@ -622,6 +622,42 @@ export const GET_MEDICINES = gql`
   }
 `;
 
+// Admin catalogue grid – server-side paginated + searchable.
+export const GET_MEDICINES_PAGINATED = gql`
+  query GetMedicinesPaginated($pagination: PaginationInput, $includeInactive: Boolean) {
+    medicinesPaginated(pagination: $pagination, includeInactive: $includeInactive) {
+      data {
+        id
+        name
+        genericName
+        manufacturer
+        dosageForm
+        strength
+        packSize
+        category
+        schedule
+        uses
+        dosageTiming
+        directionsForUse
+        storage
+        sideEffects
+        image
+        price
+        purchaseRate
+        gstRate
+        isActive
+        createdAt
+      }
+      pageInfo {
+        totalCount
+        currentPage
+        totalPages
+        hasNextPage
+      }
+    }
+  }
+`;
+
 export const GET_ALL_REGULARIZATIONS = gql`
   query GetAllRegularizations($status: ApprovalStatus) {
     allRegularizations(status: $status) {

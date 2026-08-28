@@ -42,6 +42,8 @@ export const rootTypes = /* GraphQL */ `
     allMedicineRequests(status: String): [MedicineRequest!]!
     """Master medicine catalogue – staff get active-only, admins see all"""
     medicines(search: String, includeInactive: Boolean): [MedicineCatalog!]!
+    """Admin catalogue grid – server-side paginated + searchable"""
+    medicinesPaginated(pagination: PaginationInput, includeInactive: Boolean): PaginatedMedicines!
     pendingUsers: [User!]!
     myNotifications(limit: Int, unreadOnly: Boolean): [Notification!]!
     unreadNotificationsCount: Int!

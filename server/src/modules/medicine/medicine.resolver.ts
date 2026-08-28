@@ -37,6 +37,16 @@ export const medicineResolvers = {
       }
       return medicineService.listMedicines(args.search, !!args.includeInactive, isAdmin);
     },
+
+    /** Admin catalogue grid – server-side paginated + searchable. */
+    medicinesPaginated: async (
+      _parent: unknown,
+      args: { pagination?: { page?: number; limit?: number; search?: string }; includeInactive?: boolean },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return medicineService.listMedicinesPaginated(args.pagination, !!args.includeInactive);
+    },
   },
 
   Mutation: {
