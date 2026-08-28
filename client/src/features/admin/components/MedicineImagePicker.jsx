@@ -8,7 +8,6 @@ import Paper from '@mui/material/Paper';
 import IconButton from '@mui/material/IconButton';
 import { useRef, useState } from 'react';
 import Webcam from 'react-webcam';
-import scanMedicineImage from './scanMedicineImage';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import CameraswitchIcon from '@mui/icons-material/Cameraswitch';
@@ -34,20 +33,6 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
   const webcamRef = useRef(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [facingMode, setFacingMode] = useState('environment');
-  const [scanning, setScanning] = useState(false);
-
-  // Document-scanner pass: auto-crop the pack, flatten the background to
-  // white and sharpen – falls back to the original if detection is unsure.
-  const submitScanned = async (dataUrl) => {
-    setScanning(true);
-    try {
-      onChange?.(await scanMedicineImage(dataUrl));
-    } catch {
-      onChange?.(dataUrl); // never block the user on a scan hiccup
-    } finally {
-      setScanning(false);
-    }
-  };
 
   // Snap the current webcam frame → data-url. Works on desktop (Mac webcam)
   // and mobile alike, unlike `capture` which desktops ignore.
@@ -58,7 +43,7 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
       return;
     }
     setCameraOpen(false);
-    submitScanned(shot);
+    onChange?.(shot);
   };
 
   const handleFile = (event) => {
@@ -76,7 +61,7 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
     }
 
     const reader = new FileReader();
-    reader.onload = () => submitScanned(reader.result);
+    reader.onload = () => onChange?.(reader.result);
     reader.onerror = () => notify.error('Could not read the selected image. Please try another file.');
     reader.readAsDataURL(file);
   };
@@ -91,7 +76,7 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
             color="primary"
             startIcon={<AddPhotoAlternateIcon />}
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || scanning}
+            disabled={disabled}
           >
             Upload Image
           </AppButton>
@@ -101,7 +86,7 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
             color="primary"
             startIcon={<PhotoCameraIcon />}
             onClick={() => setCameraOpen(true)}
-            disabled={disabled || scanning}
+            disabled={disabled}
           >
             Take Photo
           </AppButton>
@@ -128,9 +113,7 @@ const MedicineImagePicker = ({ value, onChange, disabled = false }) => {
       )}
       {!value && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
-          {scanning
-            ? 'Scanning image… (auto-crop + clean white background)'
-            : 'Upload a file or snap a live photo · auto-scanned like a document · max 3 MB'}
+          Upload a file or snap a live photo · max 3 MB
         </Typography>
       )}
 

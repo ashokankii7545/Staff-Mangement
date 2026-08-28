@@ -96,21 +96,51 @@ export const GenericDataGrid = ({
   hidePagination = false,
   /** Called when the user taps Retry on the error state (falls back to reload) */
   onRetry,
-  /** Optional: called with (row) when a body row is clicked. Makes rows clickable. */
+    /** Optional: called with (row) when a body row is clicked. Makes rows clickable. */
   onRowClick,
+  /** Optional key to persist grid state (page/search/columns/sort) across visits. Falls back to `title`. */
+  stateKey,
 }) => {
-  const [internalPage, setInternalPage] = useState(0);
-  const [internalRowsPerPage, setInternalRowsPerPage] = useState(rowsPerPage);
-  const [internalSortBy, setInternalSortBy] = useState(sortBy);
-  const [internalSortDirection, setInternalSortDirection] = useState(sortDirection);
-  const [searchText, setSearchText] = useState('');
+        // ── Persist grid view-state (page/search/columns/density/sort) so it survives
+  //    unmount/remount (route nav, Apollo reload, hard refresh). The parent passes
+  //    a fresh `columns` array EVERY render — the old "reset to all columns" effect
+  //    wiped user toggles + state on every Apollo update. ──────────────────────
+  const gridStateKey = stateKey || title || 'datagrid';
+  const storageKey = (k) => `gdg:${gridStateKey}:${k}`;
+  const readStorage = (k, fallback) => {
+    try {
+      const v = localStorage.getItem(storageKey(k));
+      return v !== null ? JSON.parse(v) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const writeStorage = (k, v) => {
+    try { localStorage.setItem(storageKey(k), JSON.stringify(v)); } catch { /* quota/private */ }
+  };
+
+  const [internalPage, setInternalPage] = useState(() => Number(readStorage('page', 0)) || 0);
+  const [internalRowsPerPage, setInternalRowsPerPage] = useState(() => Number(readStorage('rpp', rowsPerPage)) || rowsPerPage);
+  const [internalSortBy, setInternalSortBy] = useState(() => readStorage('sortBy', sortBy));
+  const [internalSortDirection, setInternalSortDirection] = useState(() => readStorage('sortDir', sortDirection));
+  const [searchText, setSearchText] = useState(() => readStorage('search', '') || '');
   const debouncedSearchText = useDebounce(searchText, 300);
   const [filterAnchor, setFilterAnchor] = useState(null);
-  const [visibleColumns, setVisibleColumns] = useState(columns.map((col) => col.id));
 
-  // Keep column-visibility state in sync when columns change dynamically
+  // Column visibility — restore from storage, else show all.
+  const [visibleColumns, setVisibleColumns] = useState(() =>
+    readStorage('cols', null) || columns.map((col) => col.id)
+  );
+
+  // Merge dynamically: when the parent passes a NEW columns array every render,
+  // only ADD brand-new ids and DROP removed ones — never wipe a toggled-off column.
   useEffect(() => {
-    setVisibleColumns(columns.map((col) => col.id));
+    setVisibleColumns((prev) => {
+      const colIds = new Set(columns.map((col) => col.id));
+      const merged = prev.filter((id) => colIds.has(id));
+      colIds.forEach((id) => { if (!merged.includes(id)) merged.push(id); });
+      return merged;
+    });
   }, [columns]);
 
   // Call onSearch when debounced string changes for server-side
@@ -119,6 +149,14 @@ export const GenericDataGrid = ({
       onSearch(debouncedSearchText);
     }
   }, [debouncedSearchText, onSearch]);
+
+  // Persist view-state to localStorage so it survives remount/refresh/nav.
+  useEffect(() => { writeStorage('page', internalPage); }, [internalPage, gridStateKey]);
+  useEffect(() => { writeStorage('rpp', internalRowsPerPage); }, [internalRowsPerPage, gridStateKey]);
+  useEffect(() => { writeStorage('search', searchText); }, [searchText, gridStateKey]);
+  useEffect(() => { writeStorage('sortBy', internalSortBy); }, [internalSortBy, gridStateKey]);
+  useEffect(() => { writeStorage('sortDir', internalSortDirection); }, [internalSortDirection, gridStateKey]);
+  useEffect(() => { writeStorage('cols', visibleColumns); }, [visibleColumns, gridStateKey]);
 
   const isServerSide = !!totalCount && !!onPageChange;
   const currentPage = isServerSide ? page : internalPage;
@@ -135,7 +173,7 @@ export const GenericDataGrid = ({
           if (val && typeof val === 'object') {
             try {
               val = JSON.stringify(val);
-            } catch (_e) {
+                                    } catch {
               val = '';
             }
           }
@@ -164,7 +202,15 @@ export const GenericDataGrid = ({
     return filteredRows.slice(start, start + currentRowsPerPage);
   }, [filteredRows, currentPage, currentRowsPerPage, isServerSide, hidePagination]);
 
-  const effectiveTotalCount = isServerSide ? totalCount : (hidePagination ? paginatedRows.length : filteredRows.length);
+        const effectiveTotalCount = isServerSide ? totalCount : (hidePagination ? paginatedRows.length : filteredRows.length);
+
+  // Keep the current page valid when the (client-side) row-set shrinks below it,
+  // e.g. after a search filter or data load with fewer results.
+  useEffect(() => {
+    if (isServerSide || hidePagination) return;
+    const lastPageIndex = Math.max(0, Math.ceil((filteredRows.length || 1) / currentRowsPerPage) - 1);
+    setInternalPage((p) => (p > lastPageIndex ? lastPageIndex : p));
+  }, [filteredRows.length, currentRowsPerPage, isServerSide, hidePagination]);
 
   const handleSort = (columnId) => {
     const isAsc = internalSortBy === columnId && internalSortDirection === 'asc';
