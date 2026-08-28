@@ -25,6 +25,8 @@ export interface AppEnv {
   readonly databasePoolMax: number;
   readonly jwtSecret: string;
   readonly jwtExpiresIn: string;
+  /** Long-lived refresh token TTL (silent session renewal). */
+  readonly jwtRefreshExpiresIn: string;
   /** null → allow every origin (dev). Array → strict allow-list (prod). */
   readonly corsOrigins: string[] | null;
   /** Frontend base URL used inside emails (reset links, CTA buttons). */
@@ -36,6 +38,12 @@ export interface AppEnv {
   readonly faceServiceUrl: string;
   /** Optional bearer token for the face service (must match its FACE_SERVICE_TOKEN). */
   readonly faceServiceToken: string;
+  /**
+   * Public URL used to self-ping /health and keep free-tier hosts awake
+   * (Render auto-injects RENDER_EXTERNAL_URL; KEEP_ALIVE_URL overrides it).
+   * Empty → keep-alive job stays off.
+   */
+  readonly keepAliveUrl: string;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
   readonly smtp: {
     readonly host: string | null;
@@ -106,6 +114,7 @@ class EnvConfig {
       databasePoolMax: parseInt(process.env.DATABASE_POOL_MAX ?? '10', 10),
       jwtSecret: process.env.JWT_SECRET!,
       jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+      jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
       corsOrigins: corsRaw ? corsRaw.split(',').map((o) => o.trim()).filter(Boolean) : null,
       frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
       uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
@@ -113,6 +122,8 @@ class EnvConfig {
       vpnApiKey: process.env.VPNAPI_KEY ?? '',
       faceServiceUrl: process.env.FACE_SERVICE_URL?.trim() || '',
       faceServiceToken: process.env.FACE_SERVICE_TOKEN?.trim() || '',
+      keepAliveUrl:
+        process.env.KEEP_ALIVE_URL?.trim() || process.env.RENDER_EXTERNAL_URL?.trim() || '',
       logLevel: parseLogLevel(process.env.LOG_LEVEL),
       smtp: Object.freeze({
         host: process.env.SMTP_HOST?.trim() || null,

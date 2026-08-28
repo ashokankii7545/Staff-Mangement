@@ -12,6 +12,8 @@ export const authTypes = /* GraphQL */ `
 
   type AuthPayload {
     token: String!
+    """Long-lived token used to silently renew the session (30 days)."""
+    refreshToken: String!
     user: User!
   }
 

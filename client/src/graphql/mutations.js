@@ -4,6 +4,7 @@ export const LOGIN = gql`
   mutation Login($employeeId: String!, $password: String!) {
     login(employeeId: $employeeId, password: $password) {
       token
+      refreshToken
       user {
         id
         employeeId
@@ -22,6 +23,7 @@ export const GOOGLE_LOGIN = gql`
   mutation GoogleLogin($credential: String!) {
     googleLogin(credential: $credential) {
       token
+      refreshToken
       user {
         id
         employeeId
@@ -31,6 +33,24 @@ export const GOOGLE_LOGIN = gql`
         themePreference
         restrictedPages
         approvalStatus
+      }
+    }
+  }
+`;
+
+/**
+ * Silent session renewal – exchanged by the Apollo error-link when the access
+ * token expires. Kept here for reference; the refresh call itself uses a raw
+ * fetch in apolloClient.js to avoid Apollo-client recursion.
+ */
+export const REFRESH_TOKEN = gql`
+  mutation RefreshToken($refreshToken: String!) {
+    refreshToken(refreshToken: $refreshToken) {
+      token
+      refreshToken
+      user {
+        id
+        role
       }
     }
   }

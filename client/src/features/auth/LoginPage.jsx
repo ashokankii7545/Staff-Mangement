@@ -99,7 +99,7 @@ const LoginPage = () => {
   // ── Sign In ────────────────────────────────────────────────────────────────
   const [loginMutation, { loading: loginLoading }] = useAppMutation(LOGIN, {
     onCompleted: (data) => {
-      login(data.login.user, data.login.token);
+      login(data.login.user, data.login.token, data.login.refreshToken);
       navigate('/');
     },
     onError: (err) => {
@@ -117,7 +117,7 @@ const LoginPage = () => {
   // ── Google Sign In / first-time Google signup ─────────────────────────────
   const [googleLoginMutation, { loading: googleLoading }] = useAppMutation(GOOGLE_LOGIN, {
     onCompleted: (data) => {
-      login(data.googleLogin.user, data.googleLogin.token);
+      login(data.googleLogin.user, data.googleLogin.token, data.googleLogin.refreshToken);
       navigate('/');
     },
     onError: (err) => {

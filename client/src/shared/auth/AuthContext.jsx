@@ -28,13 +28,14 @@ export const AuthProvider = ({ children }) => {
   }, []);
   useSessionExpiredSync(handleSessionExpired);
 
-  const login = useCallback((userData, authToken) => {
+  const login = useCallback((userData, authToken, refreshToken) => {
     setUser(userData);
     setToken(authToken);
     logger.setCorrelationId(userData?.id || 'UNKNOWN');
     logger.info('User logged in successfully', { email: userData?.email, role: userData?.role });
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('token', authToken);
+    if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
   }, []);
 
   const logout = useCallback(() => {
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     apolloClient.resetStore();
     logger.info('User logged out');
     logger.clearCorrelationId();

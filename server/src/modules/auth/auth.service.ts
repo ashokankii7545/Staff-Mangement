@@ -16,7 +16,11 @@ import { getFaceEmbeddingFromBase64 } from '../../shared/utils/face.util.js';
 import { mailService } from '../../shared/mail/mail.service.js';
 import { notificationService } from '../notification/notification.service.js';
 import { userRepository } from '../user/user.repository.js';
-import { signAuthToken } from '../../shared/utils/jwt.util.js';
+import {
+  signAuthToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from '../../shared/utils/jwt.util.js';
 import { verifyPassword } from '../../shared/utils/password.util.js';
 import { leaveService } from '../leave/leave.service.js';
 import { notificationRepository } from '../notification/notification.repository.js';
@@ -25,6 +29,7 @@ import type { Role } from '../../config/constants.js';
 
 export interface AuthPayload {
   token: string;
+  refreshToken: string;
   user: IUserDocument;
 }
 
@@ -245,6 +250,37 @@ class AuthService {
 
   // ── AUTH FLOWS ────────────────────────────────────────────────────────────
 
+  /** Mint a fresh access + refresh token pair for an authenticated user. */
+  private mintSession(user: IUserDocument): AuthPayload {
+    const payload = { id: String(user._id), role: user.role as Role };
+    return {
+      token: signAuthToken(payload),
+      refreshToken: signRefreshToken(payload),
+      user,
+    };
+  }
+
+  /**
+   * Exchange a valid refresh token for a brand-new session pair (silent
+   * renewal). Re-checks the login gate so a deactivated / rejected account
+   * cannot ride an old refresh token back in.
+   */
+  public async refreshUserSession(refreshToken: string): Promise<AuthPayload> {
+    let payload;
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch {
+      throw new AuthenticationError('Invalid or expired refresh token.');
+    }
+
+    const user = await userRepository.queries.findById(payload.id);
+    if (!user) {
+      throw new AuthenticationError('Invalid or expired refresh token.');
+    }
+    this.assertCanLogin(user);
+    return this.mintSession(user);
+  }
+
   /** Employee ID + password login. Blocked unless APPROVED + ACTIVE. */
   public async loginUser(args: {
     employeeId: string;
@@ -264,10 +300,7 @@ class AuthService {
     }
 
     this.assertCanLogin(user);
-    return {
-      token: signAuthToken({ id: String(user._id), role: user.role as Role }),
-      user,
-    };
+    return this.mintSession(user);
   }
 
   /**
@@ -302,10 +335,7 @@ class AuthService {
     }
 
     this.assertCanLogin(user);
-    return {
-      token: signAuthToken({ id: String(user._id), role: user.role as Role }),
-      user,
-    };
+    return this.mintSession(user);
   }
 
   /** Admin-created staff – APPROVED instantly, optional hire photo as avatar. */

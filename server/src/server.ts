@@ -11,6 +11,7 @@ import { mailer } from './shared/mail/mailer.js';
 import { schema } from './graphql/schema.js';
 import { buildWsContext } from './graphql/context.js';
 import { createBaseApp, attachGraphql } from './app.js';
+import { startKeepAlive } from './jobs/keep-alive.job.js';
 import { startRegularizationAutoApprover } from './jobs/regularization-auto-approve.job.js';
 import { startLeaveAccrualScheduler } from './jobs/leave-accrual.job.js';
 import { startPunchReminderScheduler } from './jobs/punch-reminder.job.js';
@@ -103,6 +104,7 @@ class Application {
       logger.info(`🚀 Subscriptions    → ws://localhost:${env.port}/graphql`);
 
       // 6. Background jobs last – they assume a live DB.
+      startKeepAlive();
       startRegularizationAutoApprover();
       startLeaveAccrualScheduler();
       startPunchReminderScheduler();

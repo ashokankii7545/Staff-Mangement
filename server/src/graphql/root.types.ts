@@ -53,6 +53,7 @@ export const rootTypes = /* GraphQL */ `
   type Mutation {
     login(employeeId: String!, password: String!): AuthPayload!
     googleLogin(credential: String!): AuthPayload!
+    refreshToken(refreshToken: String!): AuthPayload!
     requestPasswordReset(email: String!): Boolean!
     resetPasswordWithToken(token: String!, newPassword: String!): Boolean!
     changePassword(currentPassword: String, newPassword: String!): Boolean!

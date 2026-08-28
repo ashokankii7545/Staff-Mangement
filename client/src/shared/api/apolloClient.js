@@ -16,13 +16,36 @@ const WS_URI = import.meta.env.GRAPHQL_WS_URI || 'ws://localhost:8080/graphql';
 // 1. DEPENDENCY INJECTION (Local Storage mapping)
 export const authProvider = {
   getToken: () => localStorage.getItem('token'),
+  /**
+   * Silent session renewal: exchange the stored refresh token for a new
+   * access + refresh pair. Uses raw fetch (NOT the Apollo client) so the
+   * refresh request itself can never re-enter this error-link queue.
+   */
   refreshToken: async () => {
-    // Implement actual backend refresh token flow here when available
-    return Promise.reject(new Error('Refresh token not implemented yet.'));
+    const current = localStorage.getItem('refreshToken');
+    if (!current) throw new Error('No refresh token – full login required.');
+
+    const res = await fetch(HTTP_URI, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `mutation($rt: String!) { refreshToken(refreshToken: $rt) { token refreshToken } }`,
+        variables: { rt: current },
+      }),
+    });
+    const json = await res.json();
+    const payload = json?.data?.refreshToken;
+    if (!payload?.token) {
+      throw new Error(json?.errors?.[0]?.message || 'Refresh token rejected.');
+    }
+    localStorage.setItem('token', payload.token);
+    if (payload.refreshToken) localStorage.setItem('refreshToken', payload.refreshToken);
+    return payload.token;
   },
   handleStepUpAuth: (acrValues) => console.warn('Step up auth requested:', acrValues),
   logout: () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     window.location.href = '/login';
   },
@@ -195,7 +218,6 @@ const timeoutLink = new ApolloLink((operation, forward) => {
   const timeout = operation.getContext().timeout || 15000;
   
   return new Observable((observer) => {
-    let handle;
     let subscription;
 
     try {
@@ -208,7 +230,7 @@ const timeoutLink = new ApolloLink((operation, forward) => {
       observer.error(e);
     }
 
-    handle = setTimeout(() => {
+    const handle = setTimeout(() => {
       if (subscription) subscription.unsubscribe();
       observer.error(new Error('Request timeout exceeded'));
     }, timeout);

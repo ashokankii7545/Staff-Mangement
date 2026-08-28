@@ -20,6 +20,10 @@ export const authResolvers = {
     googleLogin: async (_parent: unknown, args: { credential: string }, ctx: ContextValue) =>
       authService.googleLogin({ credential: args.credential, ip: ctx.clientIp }),
 
+    /** Public: exchange a refresh token for a fresh access + refresh pair. */
+    refreshToken: async (_parent: unknown, args: { refreshToken: string }) =>
+      authService.refreshUserSession(args.refreshToken),
+
     requestPasswordReset: async (_parent: unknown, args: { email: string }) =>
       authService.requestPasswordReset(args.email),
 
