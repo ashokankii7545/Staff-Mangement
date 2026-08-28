@@ -77,11 +77,7 @@ const PageHeader = forwardRef(({
         spacing={1.5}
       >
         <Stack direction="row" alignItems="center" spacing={1.5}>
-          {false && ( // Disabled: backButton is redundant with global BreadcrumbBar
-            <IconButton onClick={handleBack} size="small" sx={{ ml: -1 }} aria-label="Go back">
-              <ArrowBackIcon />
-            </IconButton>
-          )}
+          {/* Disabled: backButton is redundant with global BreadcrumbBar */}
           {Icon && <Icon sx={{ color: 'text.secondary' }} />}
           <Box>
             <Typography variant="h5" fontWeight={700} sx={{ color: 'text.primary' }}>

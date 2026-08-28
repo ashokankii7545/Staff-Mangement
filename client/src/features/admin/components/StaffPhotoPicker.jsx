@@ -1,4 +1,3 @@
-import { useNotification } from '../../../shared/ui';
 import AppButton from '../../../shared/ui/AppButton';
 import GenericDialog from '../../../shared/ui/GenericDialog';
 import SelfieCapture from '../../attendance/components/SelfieCapture';

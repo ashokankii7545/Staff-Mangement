@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { ErrorBoundary, useErrorBoundary } from 'react-error-boundary';
 import { Box, Typography, Button, Paper } from '@mui/material';
 import { alpha } from '@mui/material/styles';

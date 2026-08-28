@@ -195,7 +195,6 @@ const timeoutLink = new ApolloLink((operation, forward) => {
   const timeout = operation.getContext().timeout || 15000;
   
   return new Observable((observer) => {
-    let handle;
     let subscription;
 
     try {
@@ -208,7 +207,7 @@ const timeoutLink = new ApolloLink((operation, forward) => {
       observer.error(e);
     }
 
-    handle = setTimeout(() => {
+    const handle = setTimeout(() => {
       if (subscription) subscription.unsubscribe();
       observer.error(new Error('Request timeout exceeded'));
     }, timeout);

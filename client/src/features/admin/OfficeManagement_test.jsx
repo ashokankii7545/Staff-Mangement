@@ -134,6 +134,7 @@ const OfficeManagement = () => {
                       <IconButton size="small" onClick={() => handleOpen(office)} color="primary" aria-label={`Edit ${office.name}`}>
                         <EditIcon fontSize="small" />
                       </IconButton>
+                      <IconButton size="small" color="error" aria-label={`Delete ${office.name}`}>
                         <DeleteOutlineIcon fontSize="small" />
                       </IconButton>
                     </Box>

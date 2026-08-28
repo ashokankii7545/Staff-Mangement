@@ -10,7 +10,7 @@ import {
 } from 'react-router-dom';
 import { Box, Button, Stack, Container } from '@mui/material';
 import { useAuth } from '../auth/AuthContext';
-import { useRoles, usePermissions, usePageAccess } from '../auth/hooks';
+import { useRoles, usePageAccess } from '../auth/hooks';
 import { AppErrorBoundary } from '../lib/ErrorHandler';
 import { AdvancedLoader } from '../ui/AdvancedLoader';
 import { EmptyState } from '../ui';
@@ -111,19 +111,21 @@ export const LazyLoader = (importFunc) => {
       return { default: Component };
     })
   );
-  return (props) => (
-    <Suspense
-      fallback={
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-          <AdvancedLoader isLoading variant="gradient" message="Loading…" />
-        </Box>
-      }
-    >
-      <AppErrorBoundary variant="component">
-         <LazyComponent {...props} />
-      </AppErrorBoundary>
-    </Suspense>
-  );
+  return function LazyWrapper(props) {
+    return (
+      <Suspense
+        fallback={
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+            <AdvancedLoader isLoading variant="gradient" message="Loading…" />
+          </Box>
+        }
+      >
+        <AppErrorBoundary variant="component">
+           <LazyComponent {...props} />
+        </AppErrorBoundary>
+      </Suspense>
+    );
+  };
 };
 
 // ------------------------------------------------------------
@@ -163,7 +165,7 @@ export const buildRouter = (routes) => {
 
       return {
         path: route.path,
-        element: element,
+        element,
         errorElement: <RouteErrorBoundary />,
         children: route.children ? mapRoutes(route.children) : undefined,
       };

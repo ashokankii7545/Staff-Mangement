@@ -1,15 +1,15 @@
 const fs = require('fs');
 let content = fs.readFileSync('layout/Sidebar.jsx', 'utf8');
 
-const importsToAdd = import Collapse from '@mui/material/Collapse';
+const importsToAdd = `import Collapse from '@mui/material/Collapse';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Divider from '@mui/material/Divider';
-import React from 'react';;
+import React from 'react';`;
 
-content = content.replace(import Box from '@mui/material/Box';, importsToAdd + '\n' + import Box from '@mui/material/Box';);
+content = content.replace("import Box from '@mui/material/Box';", importsToAdd + '\n' + "import Box from '@mui/material/Box';");
 
-const stateLogic = 
+const stateLogic = `
   const [expanded, setExpanded] = useState({
     'User Management': true,
     'Operations & Medical': false,
