@@ -139,6 +139,7 @@ const HolidaysManagement = () => {
       <Card variant="outlined">
         <GenericDataGrid
           title="Holiday Calendar"
+          stateKey="holidays"
           rows={data?.holidays || []}
           columns={columns}
           loading={loading}

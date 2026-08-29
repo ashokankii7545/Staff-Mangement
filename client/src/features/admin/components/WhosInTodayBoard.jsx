@@ -354,6 +354,7 @@ const WhosInTodayBoard = ({ selectedOffice = 'ALL', dateRange }) => {
           size="small"
           showToolbar={false}
           rowsPerPage={10}
+          stateKey="whos-in-today"
         />
       )}
 

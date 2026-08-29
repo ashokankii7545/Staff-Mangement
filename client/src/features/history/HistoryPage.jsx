@@ -217,6 +217,7 @@ const HistoryPage = () => {
         <Box sx={{ minHeight: 500 }}>
           <GenericDataGrid
             title="Attendance Records"
+            stateKey="attendance-history"
             rows={rows}
             columns={columns}
             loading={loading}

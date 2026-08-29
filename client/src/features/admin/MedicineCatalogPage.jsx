@@ -247,6 +247,7 @@ const MedicineCatalogPage = () => {
       <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <GenericDataGrid
           title="Medicines"
+          stateKey="medicine-catalogue"
           rows={rows}
           totalCount={totalCount}
           page={page}

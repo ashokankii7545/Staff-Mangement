@@ -160,7 +160,10 @@ export const GenericDataGrid = ({
     writeStorage('cols', visibleColumns);
   }, [internalPage, internalRowsPerPage, searchText, internalSortBy, internalSortDirection, visibleColumns, writeStorage]);
 
-  const isServerSide = !!totalCount && !!onPageChange;
+  // Server-driven grid mode keyed off onPageChange only - STABLE prop. totalCount
+  // is 0 mid-fetch; deriving mode from it flips the grid to client-side mode and
+  // "loses" pagination at every keystroke.
+  const isServerSide = typeof onPageChange === 'function';
   const currentPage = isServerSide ? page : internalPage;
   const currentRowsPerPage = isServerSide ? rowsPerPage : internalRowsPerPage;
 
@@ -236,6 +239,7 @@ export const GenericDataGrid = ({
     if (isServerSide && onRowsPerPageChange) onRowsPerPageChange(newRowsPerPage);
     else setInternalRowsPerPage(newRowsPerPage);
     setInternalPage(0);
+    if (isServerSide && onPageChange) onPageChange(0); // MUI: new page size -> back to page 1
   };
 
   const _handleSelectAll = (checked) => {

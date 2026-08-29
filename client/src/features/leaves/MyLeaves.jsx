@@ -160,6 +160,7 @@ const MyLeaves = () => {
       <Card sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
         <GenericDataGrid
           title="Past Applications"
+          stateKey="my-leaves"
           rows={leavesData?.myLeaveRequests || []}
           columns={columns}
           loading={loading}

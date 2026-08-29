@@ -275,6 +275,7 @@ const StaffManagement = () => {
       <Card variant="outlined">
         <GenericDataGrid
           title="Staff Roster"
+          stateKey="staff-roster"
           rows={data?.users?.data || []}
           totalCount={data?.users?.pageInfo?.totalCount || 0}
           page={page}

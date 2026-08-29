@@ -339,6 +339,7 @@ const ApprovalsPage = () => {
             loading={leaveLoading}
             error={leaveError}
             onRetry={refetchLeaves}
+            stateKey="approvals-leave"
             title=""
           />
         )}
@@ -349,6 +350,7 @@ const ApprovalsPage = () => {
             loading={attLoading}
             error={attError}
             onRetry={refetchAtt}
+            stateKey="approvals-attendance"
             title=""
           />
         )}
@@ -357,6 +359,7 @@ const ApprovalsPage = () => {
             rows={pendingUsersData?.pendingUsers || []}
             columns={signupColumns}
             loading={pendingUsersLoading}
+            stateKey="approvals-signups"
             title=""
           />
         )}

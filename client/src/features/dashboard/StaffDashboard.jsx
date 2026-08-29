@@ -537,6 +537,7 @@ const StaffDashboard = () => {
           size="small"
           hidePagination
           showToolbar={false}
+          stateKey="dashboard-recent"
         />
 
         <AppButton

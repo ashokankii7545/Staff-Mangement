@@ -206,6 +206,7 @@ const DocumentsPage = () => {
             loading={allQuery.loading}
             error={allQuery.error}
             onRetry={() => allQuery.refetch()}
+            stateKey="documents-admin"
           />
         ) : (
           <GenericDataGrid
@@ -215,6 +216,7 @@ const DocumentsPage = () => {
             loading={myQuery.loading}
             error={myQuery.error}
             onRetry={() => myQuery.refetch()}
+            stateKey="documents-my"
           />
         )}
       </Card>

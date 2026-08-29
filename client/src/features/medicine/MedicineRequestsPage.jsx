@@ -365,6 +365,7 @@ const MedicineRequestsPage = () => {
           </Tabs>
           <GenericDataGrid
             title={`${statusTab.charAt(0)}${statusTab.slice(1).toLowerCase()} Requests`}
+            stateKey="medicine-requests-admin"
             rows={allRequests}
             columns={adminColumns}
             loading={adminQuery.loading}
@@ -396,6 +397,7 @@ const MedicineRequestsPage = () => {
 
           <GenericDataGrid
             rows={staffFilter === 'ALL' ? myRequests : myRequests.filter(r => r.status === staffFilter)}
+            stateKey="medicine-requests-staff"
             columns={staffColumns}
             loading={myQuery.loading}
             error={myQuery.error}
