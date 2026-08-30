@@ -132,15 +132,29 @@ export const GenericDataGrid = ({
     readStorage('cols', null) || columns.map((col) => col.id)
   );
 
-  // Merge dynamically: when the parent passes a NEW columns array every render,
-  // only ADD brand-new ids and DROP removed ones — never wipe a toggled-off column.
+  // Track previously known column IDs to only add actually NEW columns,
+  // without resetting user's visibility preferences on every render.
+  const prevColIdsRef = useRef(columns.map((c) => c.id).join(','));
+
   useEffect(() => {
-    setVisibleColumns((prev) => {
-      const colIds = new Set(columns.map((col) => col.id));
-      const merged = prev.filter((id) => colIds.has(id));
-      colIds.forEach((id) => { if (!merged.includes(id)) merged.push(id); });
-      return merged;
-    });
+    const currentColsStr = columns.map((c) => c.id).join(',');
+    if (prevColIdsRef.current !== currentColsStr) {
+      const currentIds = columns.map((c) => c.id);
+      const prevIds = prevColIdsRef.current.split(',').filter(Boolean);
+      
+      // Newly added columns in the code that the user hasn't seen yet
+      const newIds = currentIds.filter((id) => !prevIds.includes(id));
+      
+      setVisibleColumns((prev) => {
+        // Keep only columns that still exist in the new columns array
+        const merged = prev.filter((id) => currentIds.includes(id));
+        // Append newly introduced columns by default
+        merged.push(...newIds);
+        return merged;
+      });
+      
+      prevColIdsRef.current = currentColsStr;
+    }
   }, [columns]);
 
   // Call onSearch ONLY when the debounced search string actually changes.
@@ -417,10 +431,10 @@ export const GenericDataGrid = ({
             sx={{ borderTop: '1px solid', borderColor: 'divider' }}
             rowsPerPageOptions={[5, 10, 25, 50, 100]}
             component="div"
-            count={0}
+            count={effectiveTotalCount}
             rowsPerPage={currentRowsPerPage}
-            page={0}
-            onPageChange={() => {}}
+            page={effectiveTotalCount === 0 ? 0 : currentPage}
+            onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
           />
         )}
@@ -473,7 +487,7 @@ export const GenericDataGrid = ({
           component="div"
           count={effectiveTotalCount}
           rowsPerPage={currentRowsPerPage}
-          page={currentPage}
+          page={effectiveTotalCount === 0 ? 0 : currentPage}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
