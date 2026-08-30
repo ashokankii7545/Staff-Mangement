@@ -1,5 +1,6 @@
 import { AuthenticationError, ForbiddenError } from '../errors/app.errors.js';
 import { extractBearerToken, verifyAuthToken } from '../utils/jwt.util.js';
+import { cachedAuthUser, rememberAuthUser } from '../security/auth-user-cache.js';
 import { userRepository } from '../../modules/user/user.repository.js';
 import type { IUserDocument } from '../../modules/user/user.model.js';
 
@@ -23,13 +24,25 @@ export const getAuthUser = async (
     // are not valid uuids – treat them as anonymous (forces a clean re-login)
     // instead of firing a failing query at Postgres on every request.
     if (!decoded.id || !UUID_RE.test(decoded.id)) return null;
+
+    // Short-TTL cache (shared/security/auth-user-cache): page-loads fire many
+    // GraphQL requests concurrently and every one used to re-SELECT the same
+    // user (~160ms round-trip on the remote cluster). Deactivate / approve /
+    // role changes invalidate the entry from the user repository write paths,
+    // so access-control updates still take effect on the next request.
+    const cached = cachedAuthUser(decoded.id);
+    if (cached !== undefined) return cached;
+
     const user = await userRepository.queries.findById(decoded.id);
     // EDGE CASE GUARD: a live token must STILL belong to an ACTIVE + APPROVED
     // account – deactivating someone (or rejecting their signup) takes effect
-    // immediately instead of waiting for the 7-day token to expire.
+    // immediately (see invalidation note above) instead of waiting for the
+    // 7-day token to expire.
     if (!user || !user.isActive || user.approvalStatus !== 'APPROVED') {
+      rememberAuthUser(decoded.id, null);
       return null;
     }
+    rememberAuthUser(decoded.id, user);
     return user;
   } catch {
     // Invalid/expired token == anonymous, never a crash.

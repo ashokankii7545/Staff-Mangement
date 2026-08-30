@@ -1,5 +1,6 @@
 import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
+import { invalidateAuthUser } from '../../shared/security/auth-user-cache.js';
 import { users } from '../../db/schema/user.schema.js';
 import { hashPassword } from '../../shared/utils/password.util.js';
 import type { IUser, IUserDocument } from './user.model.js';
@@ -152,7 +153,11 @@ export class UserRepository extends BaseRepository<typeof users> {
       }),
 
     deleteById: (id: string): Promise<IUserDocument | null> =>
-      this.exec('deleteById', () => this.qDeleteById(id) as Promise<IUserDocument | null>),
+      this.exec('deleteById', async () => {
+        const result = await this.qDeleteById(id) as Promise<IUserDocument | null>;
+        invalidateAuthUser(id);
+        return result;
+      }),
 
     /** Generic partial update (profile edits, approval flows…). */
     updateById: (
@@ -162,7 +167,11 @@ export class UserRepository extends BaseRepository<typeof users> {
     ): Promise<IUserDocument | null> =>
       this.exec('updateById', async () => {
         const values = this.normalizeArrays(await this.withHashedPassword(update as { password?: string | null }));
-        return this.qUpdateById(id, values) as Promise<IUserDocument | null>;
+        const result = await this.qUpdateById(id, values) as Promise<IUserDocument | null>;
+        // isActive / approvalStatus / role may have changed → the auth-user
+        // cache must be dropped so the next request sees the new state.
+        invalidateAuthUser(id);
+        return result;
       }),
 
     /** Admin directory listing, optionally filtered by active state. */

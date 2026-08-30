@@ -12,6 +12,10 @@ import type { INotification, NotificationDocument } from './notification.model.j
 export class NotificationRepository extends BaseRepository<typeof notifications> {
   private static instance: NotificationRepository | null = null;
 
+  /** Short-TTL cache for recipient user objects (inbox reads repeat per request). */
+  private static readonly RECIPIENT_CACHE_TTL_MS = 30_000;
+  private recipientCache = new Map<string, { user: { _id: string } | null; at: number }>();
+
   private constructor() {
     super(notifications);
   }
@@ -23,11 +27,22 @@ export class NotificationRepository extends BaseRepository<typeof notifications>
     return NotificationRepository.instance;
   }
 
+  /** Resolve a recipient user object, cached briefly to avoid repeat SELECTs. */
+  private async recipient(userId: string): Promise<{ _id: string } | null> {
+    const hit = this.recipientCache.get(userId);
+    if (hit && Date.now() - hit.at < NotificationRepository.RECIPIENT_CACHE_TTL_MS) {
+      return hit.user;
+    }
+    const u = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const user = u[0] ? { ...u[0], _id: String(u[0].id) } : null;
+    this.recipientCache.set(userId, { user, at: Date.now() });
+    return user;
+  }
+
   /** Attach the populated recipient user (with _id) to a notification row. */
   private async populateRecipient(row: NotificationDocument | null): Promise<NotificationDocument | null> {
     if (!row) return null;
-    const u = await this.db.select().from(users).where(eq(users.id, row.recipient)).limit(1);
-    const recipient = u[0] ? { ...u[0], _id: String(u[0].id) } : null;
+    const recipient = await this.recipient(String(row.recipient));
     return { ...row, recipient } as unknown as NotificationDocument;
   }
 
@@ -46,18 +61,12 @@ export class NotificationRepository extends BaseRepository<typeof notifications>
           .where(and(...conditions))
           .orderBy(desc(notifications.createdAt))
           .limit(Math.min(options.limit ?? 30, 100));
+        if (rows.length === 0) return [];
         // Populate recipient so the `Notification.recipient: User!` field
         // resolves against a full user object. All rows share one recipient,
-        // so we resolve it ONCE and attach it to every row.
-        const withIds = this.withIds(rows) as NotificationDocument[];
-        if (withIds.length === 0) return withIds;
-        const recipientUser = await this.db
-          .select()
-          .from(users)
-          .where(eq(users.id, recipientId))
-          .limit(1);
-        const recipient = recipientUser[0] ? { ...recipientUser[0], _id: String(recipientUser[0].id) } : null;
-        return withIds.map((r) => ({ ...r, recipient })) as unknown as NotificationDocument[];
+        // so we resolve it ONCE (cached) and attach it to every row.
+        const recipient = await this.recipient(recipientId);
+        return this.withIds(rows).map((r) => ({ ...r, recipient })) as unknown as NotificationDocument[];
       }),
 
     countUnread: (recipientId: string): Promise<number> =>

@@ -11,9 +11,9 @@ import * as schema from '../db/schema/index.js';
  *
  * Supabase notes:
  *  - The pooled ("Transaction") endpoint on port 6543 runs pgbouncer, which is
- *    incompatible with prepared statements, so we disable them (`prepare:false`).
- *    This is harmless on the direct (5432) endpoint too, so we keep it always
- *    off for portability across both connection strings.
+ *    incompatible with prepared statements (`prepare:false`). The direct
+ *    (:5432) endpoint supports them, so `prepare` is enabled there for the
+ *    extra per-query speed.
  *  - `DATABASE_SSL=no-verify` relaxes certificate verification (Supabase serves
  *    a cert chain some environments don't trust out of the box).
  */
@@ -30,11 +30,14 @@ const createClient = (): postgres.Sql => {
   const isDirect = /:\d*5432\//.test(env.databaseUrl) || env.databaseUrl.includes(':5432');
   return postgres(env.databaseUrl, {
     max: env.databasePoolMax,
-    // pgbouncer (pooled mode) cannot use prepared statements.
-    prepare: false,
+    // pgbouncer (pooled :6543) cannot use prepared statements; the direct
+    // (:5432) endpoint supports them – only enable there.
+    prepare: isDirect,
     ssl: buildSslOption(),
-    // Idle timeout keeps serverless functions from holding connections open.
-    idle_timeout: isDirect ? 0 : 20,
+    // Keep connections warm between requests. A pooled connection used to be
+    // dropped after 20s of idle, and re-establishing it cost a ~160ms TLS
+    // handshake (~1.6s cold) on the remote Supabase cluster per request.
+    idle_timeout: 0,
     // Recycle connections after 30 min so a long-idle (or laptop-sleep) socket
     // can't go stale and hang a query for an hour before erroring.
     max_lifetime: 60 * 30,

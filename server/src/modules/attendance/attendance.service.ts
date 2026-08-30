@@ -135,11 +135,19 @@ class AttendanceService {
       throw new ValidationError('Location accuracy too low. Please enable GPS/Wi-Fi on your device.');
     }
 
-    // Org settings drive the VPN policy & geofence fallbacks.
-    const settings = await settingsRepository.queries.findFirstLean();
+    // All independent reads fire in parallel: org settings (policy), the staff
+    // profile (assigned site + temp duty), every active branch (geofence
+    // rotation) and the VPN/IP-intel API (fail-open, never throws). These were
+    // four serial network round-trips against the remote Supabase cluster
+    // (~163ms each) – overlapping them cuts ~0.5s off every punch.
+    const [settings, user, allActiveOffices, vpnResult] = await Promise.all([
+      settingsRepository.queries.findFirstLean(),
+      userRepository.queries.findById(userId, { populate: ['assignedOffice'] }),
+      officeRepository.queries.listActiveAny(),
+      checkVPN(ipAddress),
+    ]);
 
     // Layers 2-4: VPN API + WebRTC + timezone mismatch (fail-open).
-    const vpnResult = await checkVPN(ipAddress);
     const webrtcMismatch = checkWebRTCMismatch(ipAddress, input.webRTCIPs ?? []);
     const timezoneMismatch = checkTimezoneMismatch(input.browserTimezone, vpnResult.ipTimezone);
     const vpnDetected = vpnResult.isVPN || webrtcMismatch;
@@ -152,10 +160,6 @@ class AttendanceService {
     if (vpnDetected && settings?.vpnStrictMode) {
       throw new VPNDetectedError('VPN or Proxy detected. Please disable VPN to mark attendance.');
     }
-
-    // ── Multi-store geofence & branch rotation check ──
-    const user = await userRepository.queries.findById(userId, { populate: ['assignedOffice'] });
-    const allActiveOffices = await officeRepository.queries.listActiveAny();
 
     let withinGeofence = false;
     let distance = 0;
@@ -176,8 +180,12 @@ class AttendanceService {
       typeof assignedRaw === 'string'
         ? assignedRaw
         : (assignedRaw as { _id?: unknown } | null)?._id ?? null;
+    // The designated site is usually one of the ACTIVE branches we already
+    // fetched in parallel – resolve it from that list and only hit the DB on
+    // the rare inactive-office case (removes a whole round-trip per punch).
     const hydratedAssignedOffice = assignedOfficeId
-      ? await officeRepository.queries.findById(String(assignedOfficeId))
+      ? (allActiveOffices.find((o) => String(o._id) === assignedOfficeId) ??
+        (await officeRepository.queries.findById(String(assignedOfficeId))))
       : null;
 
     // Resolve the EFFECTIVE site: an active TEMP DUTY assignment wins over the
@@ -418,24 +426,27 @@ class AttendanceService {
     endDate?: string | null;
     allUsers?: boolean;
   }): Promise<unknown[]> {
-    const settings = await settingsRepository.queries.findFirstLean();
-    const lateThreshold = settings?.lateThresholdMinutes || DEFAULTS.LATE_THRESHOLD_MINUTES;
-    const shiftStart = settings?.shiftStartTime || DEFAULTS.SHIFT_START;
-
     const userId = args.allUsers ? null : args.userId ?? null;
 
-    const records = await attendanceRepository.queries.listByDateRange({
-      userId,
-      startDate: args.startDate ?? null,
-      endDate: args.endDate ?? null,
-    });
+    // Independent reads fire in parallel: org settings (lateness policy), the
+    // range's punch rows and the day-off exemptions. Previously three serial
+    // network round-trips (~0.5s against the remote cluster).
+    const [settings, records, exemptions] = await Promise.all([
+      settingsRepository.queries.findFirstLean(),
+      attendanceRepository.queries.listByDateRange({
+        userId,
+        startDate: args.startDate ?? null,
+        endDate: args.endDate ?? null,
+      }),
+      dayOffRepository.queries.listByDateRange({
+        userId: userId ?? undefined,
+        startDate: args.startDate ?? undefined,
+        endDate: args.endDate ?? undefined,
+      }),
+    ]);
 
-    // Day-off exemptions in range → shown as EXEMPT rows even without punches.
-    const exemptions = await dayOffRepository.queries.listByDateRange({
-      userId: userId ?? undefined,
-      startDate: args.startDate ?? undefined,
-      endDate: args.endDate ?? undefined,
-    });
+    const lateThreshold = settings?.lateThresholdMinutes || DEFAULTS.LATE_THRESHOLD_MINUTES;
+    const shiftStart = settings?.shiftStartTime || DEFAULTS.SHIFT_START;
 
     // ── Group ALL punches per user + date (multi-session) ──
     // Each day can hold many CLOCK_IN/CLOCK_OUT punches. We keep every punch,
@@ -549,18 +560,21 @@ class AttendanceService {
     onLeaveToday: number;
   }> {
     const today = todayISO();
-    const totalStaff = await userRepository.queries.countActiveStaff();
-    const todayRecords = await attendanceRepository.queries.listClockInsByDate(today);
 
-    const settings = await settingsRepository.queries.findFirstLean();
+    // All dashboard inputs are independent – fire them concurrently instead of
+    // five serial network round-trips (~0.8s on the remote Supabase cluster).
+    const [totalStaff, todayRecords, settings, exemptToday, onLeaveToday] = await Promise.all([
+      userRepository.queries.countActiveStaff(),
+      attendanceRepository.queries.listClockInsByDate(today),
+      settingsRepository.queries.findFirstLean(),
+      dayOffRepository.queries.countByDate(today),
+      leaveCountForDay(today),
+    ]);
+
     const shiftStart = settings?.shiftStartTime || DEFAULTS.SHIFT_START;
     const lateThreshold = settings?.lateThresholdMinutes || DEFAULTS.LATE_THRESHOLD_MINUTES;
 
     // Day-offs and approved leaves must NOT count as absent.
-    const [exemptToday, onLeaveToday] = await Promise.all([
-      dayOffRepository.queries.countByDate(today),
-      leaveCountForDay(today),
-    ]);
 
     // Approval-gated policy: REJECTED punches are INVALID attendance.
     const validRecords = todayRecords.filter((r) => r.approvalStatus !== 'REJECTED');
@@ -602,14 +616,20 @@ class AttendanceService {
   public async getMonthlyTrend(month: number, year: number): Promise<unknown[]> {
     const startDate = monthStartISO(month, year);
     const endDate = monthEndISO(month, year);
-    const totalStaff = await userRepository.queries.countActiveStaff();
 
-    const records = await attendanceRepository.queries.listClockInsBetween(startDate, endDate);
+    // Four independent reads fire in parallel: headcount, the month's
+    // clock-ins, org settings and exemption rows (~0.5s saved vs. four serial
+    // round-trips on the remote cluster).
+    const [totalStaff, records, settings, exemptDocs] = await Promise.all([
+      userRepository.queries.countActiveStaff(),
+      attendanceRepository.queries.listClockInsBetween(startDate, endDate),
+      settingsRepository.queries.findFirstLean(),
+      dayOffRepository.queries.listDatesInRange(startDate, endDate),
+    ]);
 
     // REJECTED punches are invalid attendance – exclude from trend charts.
     const validRecords = records.filter((r) => r.approvalStatus !== 'REJECTED');
 
-    const settings = await settingsRepository.queries.findFirstLean();
     const shiftStart = settings?.shiftStartTime || DEFAULTS.SHIFT_START;
     const lateThreshold = settings?.lateThresholdMinutes || DEFAULTS.LATE_THRESHOLD_MINUTES;
 
@@ -643,8 +663,6 @@ class AttendanceService {
 
     const daysInMonth = dayjs(startDate).daysInMonth();
 
-    // Exempted staff-days reduce the "absent" bar in the monthly trend.
-    const exemptDocs = await dayOffRepository.queries.listDatesInRange(startDate, endDate);
     const exemptCountByDate = new Map<string, number>();
     for (const e of exemptDocs) {
       exemptCountByDate.set(e.date, (exemptCountByDate.get(e.date) ?? 0) + 1);

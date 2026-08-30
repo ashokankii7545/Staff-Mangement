@@ -2,6 +2,7 @@ import { ApolloClient, InMemoryCache, ApolloLink, split, Observable } from '@apo
 import { setContext } from '@apollo/client/link/context';
 import { RetryLink } from '@apollo/client/link/retry';
 import { onError } from '@apollo/client/link/error';
+import { BatchHttpLink } from '@apollo/client/link/batch-http';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
@@ -188,6 +189,21 @@ const uploadLink = createUploadLink({
   headers: { 'Apollo-Require-Preflight': 'true' },
 });
 
+// E2. BATCH HTTP LINK (fast path for QUERIES ONLY)
+// A page-load fires many independent queries at once (dashboard = stats +
+// trend + activity + notifications …). Each used to be its own HTTP request
+// (+~160ms DB round-trip on the remote cluster). BatchHttpLink collapses the
+// queries issued within a 10ms window into ONE batched POST, which the server
+// handles with `allowBatchedHttpRequests` (server/src/server.ts). Mutations
+// stay on the single uploadLink above – they must not be batched (side effects)
+// and they may carry multipart file uploads.
+const batchQueryLink = new BatchHttpLink({
+  uri: HTTP_URI,
+  headers: { 'Apollo-Require-Preflight': 'true' },
+  batchMax: 10,
+  batchInterval: 10,
+});
+
 // F. WEBSOCKET LINK
 // lazy: connect only when a subscription is actually used.
 // connectionParams: authenticate the socket so per-user subscriptions
@@ -253,7 +269,20 @@ const httpChain = ApolloLink.from([
   uploadLink,
 ]);
 
-// Split HTTP vs Websocket
+// Chain for QUERIES (same middleware stack, but batched transport).
+const batchQueryChain = ApolloLink.from([
+  timeoutLink,
+  retryLink,
+  errorLink,
+  tracingLink,
+  authLink,
+  batchQueryLink,
+]);
+
+// Split transport:
+//   subscription → WebSocket
+//   mutation      → single HTTP (uploadLink handles file uploads)
+//   query         → batched HTTP (BatchHttpLink)
 const splitLink = split(
   ({ query }) => {
     const definition = getMainDefinition(query);
@@ -263,7 +292,17 @@ const splitLink = split(
     );
   },
   wsLink,
-  httpChain
+  split(
+    ({ query }) => {
+      const definition = getMainDefinition(query);
+      return (
+        definition.kind === 'OperationDefinition' &&
+        definition.operation === 'mutation'
+      );
+    },
+    httpChain,
+    batchQueryChain
+  )
 );
 
 const client = new ApolloClient({

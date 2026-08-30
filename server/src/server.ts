@@ -72,6 +72,10 @@ class Application {
       schema,
       // Hardening: hide the API surface (introspection/landing page) in prod.
       introspection: env.nodeEnv !== 'production',
+      // Allow the client's BatchHttpLink (query coalescing) to POST an array of
+      // GraphQL operations in one request – dramatically cuts page-load latency
+      // when a screen fires 4-8 independent queries at once.
+      allowBatchedHttpRequests: true,
       plugins: [
         ApolloServerPluginDrainHttpServer({ httpServer: this.httpServer }),
         {
