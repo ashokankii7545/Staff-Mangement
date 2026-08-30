@@ -167,15 +167,24 @@ class MailService {
       const admins = await userRepository.queries.findActiveAdminEmails();
       if (admins.length === 0) return;
 
-      await this.sendTemplateEmail(admins.join(','), {
-        subject: `[German Homeopathy] ${args.title}`,
-        heading: args.title,
-        introText: args.message,
-        pill: args.pill,
-        rows: args.rows,
-        noteText: args.noteText,
-        cta: { text: 'Review in Dashboard', path: args.link || '/' },
-      });
+      // force:true bypasses the `userUpdates` master switch inside
+      // sendTemplateEmail. Admin alerts are gated by the `adminAlerts` pref
+      // (checked above), NOT the user-facing `userUpdates` category – without
+      // force these emails were silently dropped whenever userUpdates was off,
+      // so admins saw the in-app notification but never got the email.
+      await this.sendTemplateEmail(
+        admins.join(','),
+        {
+          subject: `[German Homeopathy] ${args.title}`,
+          heading: args.title,
+          introText: args.message,
+          pill: args.pill,
+          rows: args.rows,
+          noteText: args.noteText,
+          cta: { text: 'Review in Dashboard', path: args.link || '/' },
+        },
+        { force: true },
+      );
     } catch (error) {
       logger.error('Failed to notify admins via email', error);
     }
