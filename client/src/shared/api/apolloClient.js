@@ -314,8 +314,13 @@ const client = new ApolloClient({
     }
   }),
   defaultOptions: {
-    watchQuery: { errorPolicy: 'all', fetchPolicy: 'cache-and-network' },
-    query: { errorPolicy: 'all', fetchPolicy: 'network-only' },
+    // Instant paint from cache on revisits, silent background refresh to keep
+    // the fresh server truth (was `network-only` – every mount re-fetched every
+    // query, so the Apollo cache was effectively unused). `nextFetchPolicy`
+    // only applies to the SAME observable's later re-runs, so a NEW page mount
+    // still revalidates with cache-and-network each time.
+    watchQuery: { errorPolicy: 'all', fetchPolicy: 'cache-and-network', nextFetchPolicy: 'cache-first' },
+    query: { errorPolicy: 'all', fetchPolicy: 'cache-and-network', nextFetchPolicy: 'cache-first' },
     mutate: { errorPolicy: 'all' },
   },
 });
