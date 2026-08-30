@@ -18,7 +18,7 @@ import { StatusBadge } from '../../shared/ui';
 import { GET_TODAY_STATUS } from '../../graphql/queries';
 
 const AttendancePage = () => {
-  const { data } = useAppQuery(GET_TODAY_STATUS, { pollInterval: 10000 });
+  const { data, loading } = useAppQuery(GET_TODAY_STATUS, { pollInterval: 10000 });
   const [dialog, setDialog] = useState({ open: false, type: 'CLOCK_IN' });
   const todayStatus = data?.todayStatus;
 
@@ -30,8 +30,10 @@ const AttendancePage = () => {
         <Grid size={{ xs: 12, md: 7 }}>
           <ClockWidget
             todayStatus={todayStatus}
-            onClockIn={() => setDialog({ open: true, type: 'CLOCK_IN' })}
-            onClockOut={() => setDialog({ open: true, type: 'CLOCK_OUT' })}
+            statusLoading={loading && !todayStatus}
+            busy={dialog.open}
+            onClockIn={() => !dialog.open && setDialog({ open: true, type: 'CLOCK_IN' })}
+            onClockOut={() => !dialog.open && setDialog({ open: true, type: 'CLOCK_OUT' })}
           />
         </Grid>
 

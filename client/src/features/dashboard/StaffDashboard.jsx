@@ -42,7 +42,7 @@ const StaffDashboard = () => {
   const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD');
 
   // Queries
-  const { data: todayData } = useAppQuery(GET_TODAY_STATUS, { pollInterval: 15000 });
+  const { data: todayData, loading: todayLoading } = useAppQuery(GET_TODAY_STATUS, { pollInterval: 15000 });
   const { data: attendanceData, loading: attendanceLoading, error: attendanceError, refetch: refetchAttendance } = useAppQuery(GET_MY_ATTENDANCE, {
     variables: { startDate: startOfMonth, endDate: todayStr },
     pollInterval: 20000,
@@ -340,8 +340,10 @@ const StaffDashboard = () => {
             {/* Core Clock-In & Verification Widget with Live Stopwatch */}
             <ClockWidget
               todayStatus={todayStatus}
-              onClockIn={() => setPunchDialog({ open: true, type: 'CLOCK_IN' })}
-              onClockOut={() => setPunchDialog({ open: true, type: 'CLOCK_OUT' })}
+              statusLoading={todayLoading && !todayStatus}
+              busy={punchDialog.open}
+              onClockIn={() => !punchDialog.open && setPunchDialog({ open: true, type: 'CLOCK_IN' })}
+              onClockOut={() => !punchDialog.open && setPunchDialog({ open: true, type: 'CLOCK_OUT' })}
               onRegularize={() => setRegularizeModalOpen(true)}
             />
 
