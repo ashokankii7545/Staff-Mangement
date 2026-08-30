@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
 import { exemptions } from '../../db/schema/day-off.schema.js';
 import { users } from '../../db/schema/user.schema.js';
@@ -36,7 +36,13 @@ export class DayOffRepository extends BaseRepository<typeof exemptions> {
       if (r.createdBy) ids.add(String(r.createdBy));
     }
     if (ids.size === 0) return rows;
-    const found = await this.db.select().from(users);
+    // Only hydrate the users actually referenced by these rows. Previously this
+    // did `select().from(users)` (the ENTIRE users table) on every attendance
+    // summary screen – an unbounded read that grew with headcount.
+    const found = await this.db
+      .select()
+      .from(users)
+      .where(inArray(users.id, [...ids]));
     const map = new Map(found.map((u) => [String(u.id), { ...u, _id: String(u.id) }]));
     return rows.map((r) => ({
       ...r,

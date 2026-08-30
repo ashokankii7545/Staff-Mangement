@@ -16,6 +16,7 @@ import { notificationService } from '../notification/notification.service.js';
 import { notificationRepository } from '../notification/notification.repository.js';
 import { dayOffRepository } from '../day-off/day-off.repository.js';
 import { attendanceRepository } from './attendance.repository.js';
+import type { ClockInStatRow } from './attendance.repository.js';
 import { settingsRepository } from '../settings/settings.repository.js';
 import { userRepository } from '../user/user.repository.js';
 import { officeRepository } from '../office/office.repository.js';
@@ -550,7 +551,9 @@ class AttendanceService {
   }> {
     const today = todayISO();
     const totalStaff = await userRepository.queries.countActiveStaff();
-    const todayRecords = await attendanceRepository.queries.listClockInsByDate(today);
+    // Slim projected rows (userId, createdAt, approvalStatus, shiftStartTime) –
+    // no jsonb/selfie/office hydration, which the counting below never used.
+    const todayRecords = await attendanceRepository.queries.listClockInStatsByDate(today);
 
     const settings = await settingsRepository.queries.findFirstLean();
     const shiftStart = settings?.shiftStartTime || DEFAULTS.SHIFT_START;
@@ -567,9 +570,9 @@ class AttendanceService {
 
     // Multi-session: a person may clock in several times today. De-dupe by user
     // so one staff member counts ONCE, using their EARLIEST clock-in for lateness.
-    const firstClockInByUser = new Map<string, AttendanceDocument>();
+    const firstClockInByUser = new Map<string, ClockInStatRow>();
     for (const record of validRecords) {
-      const uid = String((record.user as unknown as { _id?: unknown })?._id ?? record.user);
+      const uid = String(record.userId);
       const existing = firstClockInByUser.get(uid);
       if (!existing || new Date(record.createdAt).getTime() < new Date(existing.createdAt).getTime()) {
         firstClockInByUser.set(uid, record);
@@ -579,8 +582,7 @@ class AttendanceService {
     let late = 0;
     for (const record of firstClockInByUser.values()) {
       const clockInTime = dayjs(record.createdAt);
-      const userShift =
-        (record.user as unknown as { shiftStartTime?: string })?.shiftStartTime || shiftStart;
+      const userShift = record.shiftStartTime || shiftStart;
       const shiftStartTime = dayjs(`${today}T${userShift}`);
       if (clockInTime.diff(shiftStartTime, 'minute') > lateThreshold) {
         late += 1;
@@ -604,7 +606,9 @@ class AttendanceService {
     const endDate = monthEndISO(month, year);
     const totalStaff = await userRepository.queries.countActiveStaff();
 
-    const records = await attendanceRepository.queries.listClockInsBetween(startDate, endDate);
+    // Slim projected rows – no jsonb/selfie/office hydration (the trend math
+    // only needs userId, date, createdAt, approvalStatus, shiftStartTime).
+    const records = await attendanceRepository.queries.listClockInStatsBetween(startDate, endDate);
 
     // REJECTED punches are invalid attendance – exclude from trend charts.
     const validRecords = records.filter((r) => r.approvalStatus !== 'REJECTED');
@@ -615,9 +619,9 @@ class AttendanceService {
 
     // Multi-session: collapse multiple clock-ins per user/day to a single
     // earliest clock-in before counting, so one person == one present/late.
-    const firstByUserDate = new Map<string, AttendanceDocument>();
+    const firstByUserDate = new Map<string, ClockInStatRow>();
     for (const r of validRecords) {
-      const uid = String((r.user as unknown as { _id?: unknown })?._id ?? r.user);
+      const uid = String(r.userId);
       const key = `${uid}_${r.date}`;
       const existing = firstByUserDate.get(key);
       if (!existing || new Date(r.createdAt).getTime() < new Date(existing.createdAt).getTime()) {
@@ -631,8 +635,7 @@ class AttendanceService {
       if (!byDate.has(r.date)) byDate.set(r.date, { present: 0, late: 0 });
       const bucket = byDate.get(r.date)!;
       const clockInTime = dayjs(r.createdAt);
-      const userShift =
-        (r.user as unknown as { shiftStartTime?: string })?.shiftStartTime || shiftStart;
+      const userShift = r.shiftStartTime || shiftStart;
       const shiftStartTime = dayjs(`${r.date}T${userShift}`);
       if (clockInTime.diff(shiftStartTime, 'minute') > lateThreshold) {
         bucket.late += 1;

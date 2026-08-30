@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, customType, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, customType, index, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { primaryId, timestamps } from './_shared.js';
 import { offices } from './office.schema.js';
 
@@ -108,6 +108,11 @@ export const users = pgTable(
   (t) => ({
     emailUnique: uniqueIndex('users_email_unique').on(t.email),
     employeeIdUnique: uniqueIndex('users_employee_id_unique').on(t.employeeId),
+    // Dashboard + reminder sweeps filter active staff and pending signups.
+    roleActiveIdx: index('users_role_active_idx').on(t.role, t.isActive),
+    approvalRoleIdx: index('users_approval_role_idx').on(t.approvalStatus, t.role),
+    // Google login looks up by googleId.
+    googleIdIdx: index('users_google_id_idx').on(t.googleId),
   }),
 );
 

@@ -61,6 +61,10 @@ export const attendance = pgTable(
     // Multi-session: NOT unique. Fast lookups of a user's punches for a day.
     userDateIdx: index('attendance_user_date_idx').on(t.user, t.date),
     dateIdx: index('attendance_date_idx').on(t.date),
+    // Dashboard/trend queries filter type='CLOCK_IN' over a date (range).
+    typeDateIdx: index('attendance_type_date_idx').on(t.type, t.date),
+    // listByDateRange / recentActivity order by createdAt.
+    createdAtIdx: index('attendance_created_at_idx').on(t.createdAt),
   }),
 );
 

@@ -1,8 +1,18 @@
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, type SQL } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
 import { populateRefs, populateRefsOne } from '../../shared/repository/populate.util.js';
 import { attendance } from '../../db/schema/attendance.schema.js';
+import { users } from '../../db/schema/user.schema.js';
 import type { IAttendance, AttendanceDocument } from './attendance.model.js';
+
+/** Slim CLOCK_IN row for present/late aggregation – no jsonb, no populate. */
+export interface ClockInStatRow {
+  userId: string;
+  createdAt: Date;
+  date: string;
+  approvalStatus: string;
+  shiftStartTime: string;
+}
 
 export interface AttendanceRangeFilter {
   userId?: string | null;
@@ -30,6 +40,22 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
       AttendanceRepository.instance = new AttendanceRepository();
     }
     return AttendanceRepository.instance;
+  }
+
+  /** Shared projection for the slim CLOCK_IN stat queries (join users). */
+  private async selectClockInStats(where: SQL): Promise<ClockInStatRow[]> {
+    const rows = await this.db
+      .select({
+        userId: attendance.user,
+        createdAt: attendance.createdAt,
+        date: attendance.date,
+        approvalStatus: attendance.approvalStatus,
+        shiftStartTime: users.shiftStartTime,
+      })
+      .from(attendance)
+      .innerJoin(users, eq(attendance.user, users.id))
+      .where(where);
+    return rows as ClockInStatRow[];
   }
 
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
@@ -143,6 +169,29 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
           );
         return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
       }),
+
+    /**
+     * Slim CLOCK_IN rows for present/late dashboard + trend aggregation. Joins
+     * users for each punch's shiftStartTime and projects only the 5 columns the
+     * math needs – NO jsonb (location/vpnDetails), NO selfie, NO office/user
+     * hydration. Replaces the heavy fully-populated listClockInsByDate/Between
+     * on the stats paths.
+     */
+    listClockInStatsByDate: (date: string): Promise<ClockInStatRow[]> =>
+      this.exec('listClockInStatsByDate', () =>
+        this.selectClockInStats(and(eq(attendance.date, date), eq(attendance.type, 'CLOCK_IN'))!),
+      ),
+
+    listClockInStatsBetween: (startDate: string, endDate: string): Promise<ClockInStatRow[]> =>
+      this.exec('listClockInStatsBetween', () =>
+        this.selectClockInStats(
+          and(
+            gte(attendance.date, startDate),
+            lte(attendance.date, endDate),
+            eq(attendance.type, 'CLOCK_IN'),
+          )!,
+        ),
+      ),
 
     /**
      * Admin feed of latest punches across everyone or one staff member.
