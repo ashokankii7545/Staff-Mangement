@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -143,12 +143,20 @@ export const GenericDataGrid = ({
     });
   }, [columns]);
 
-  // Call onSearch when debounced string changes for server-side
+  // Call onSearch ONLY when the debounced search string actually changes.
+  // Depending on `onSearch` (an inline arrow recreated every parent render)
+  // made this fire on every render – and since the parent's onSearch resets
+  // the page to 0, server-side pagination snapped back to page 1 on every
+  // refetch. A ref-tracked previous value + skipping the initial mount fixes
+  // it: search still works, but paging no longer triggers a phantom "search".
+  const prevSearchRef = useRef(debouncedSearchText);
+  const onSearchRef = useRef(onSearch);
+  onSearchRef.current = onSearch;
   useEffect(() => {
-    if (onSearch) {
-      onSearch(debouncedSearchText);
-    }
-  }, [debouncedSearchText, onSearch]);
+    if (prevSearchRef.current === debouncedSearchText) return;
+    prevSearchRef.current = debouncedSearchText;
+    onSearchRef.current?.(debouncedSearchText);
+  }, [debouncedSearchText]);
 
   // Persist view-state to localStorage so it survives remount/refresh/nav.
   useEffect(() => {

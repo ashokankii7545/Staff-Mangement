@@ -29,11 +29,14 @@ const Layout = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const toggleCollapsed = () =>
-    setCollapsed((prev) => {
-      localStorage.setItem('sidebar-collapsed', String(!prev));
-      return !prev;
-    });
+  // Keep the state updater PURE. Persisting to localStorage inside the updater
+  // is a side effect that React 18 StrictMode runs twice, which made the toggle
+  // behave erratically (appearing to only work once). Persist in an effect.
+  const toggleCollapsed = () => setCollapsed((prev) => !prev);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', String(collapsed));
+  }, [collapsed]);
 
   // One button, context-aware behaviour: drawer toggle on mobile,
   // collapse/expand the pinned rail on desktop
