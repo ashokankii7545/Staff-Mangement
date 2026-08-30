@@ -305,7 +305,10 @@ class AuthService {
 
   /**
    * Google One-Tap / button login.
-   *  - New Google account → PENDING user created, admins notified.
+   *  - New Google account → PENDING user auto-created, admins notified. The
+   *    approval gate below then surfaces ApprovalPendingError so the UI can
+   *    guide them to wait for approval (same experience as password signup,
+   *    minus the OTP step since Google already verified the email).
    *  - Existing by email  → googleId linked (Google verified the address).
    */
   public async googleLogin(args: { credential: string; ip?: string }): Promise<AuthPayload> {
@@ -321,21 +324,82 @@ class AuthService {
       throw new AuthenticationError('Google account email could not be verified.');
     }
 
-    const email = profile.email.toLowerCase();
+    const email = this.normalizeEmail(profile.email);
     let user = await userRepository.queries.findByGoogleIdOrEmail(profile.sub, email);
 
     if (!user) {
-      throw new AuthenticationError('Email not registered. Please sign up or contact an Administrator.');
-    }
-    if (!user.googleId) {
+      // ── First-time Google user → auto-provision a PENDING account ──────────
+      // Disposable domains are still blocked, exactly like password signup.
+      this.assertNotDisposable(email);
+      user = await this.provisionGoogleUser({
+        googleId: profile.sub,
+        email,
+        name: profile.name || email.split('@')[0],
+        picture: profile.picture,
+      });
+      // Falls through to assertCanLogin below, which throws ApprovalPendingError.
+    } else if (!user.googleId) {
       // Email matched an existing account – safe to link, Google verified it.
-      const patch: Partial<IUser> = { googleId: profile.sub };
+      const patch: Partial<IUser> = { googleId: profile.sub, loginMethod: 'GOOGLE', emailVerified: true };
       if (!user.avatar && profile.picture) patch.avatar = profile.picture;
       user = (await userRepository.queries.updateById(String(user._id), patch)) ?? user;
     }
 
     this.assertCanLogin(user);
     return this.mintSession(user);
+  }
+
+  /**
+   * Create a brand-new PENDING account from a verified Google profile and
+   * notify admins. Email is already verified by Google, so there is no OTP
+   * step. Returns the freshly created (PENDING) user.
+   */
+  private async provisionGoogleUser(args: {
+    googleId: string;
+    email: string;
+    name: string;
+    picture?: string;
+  }): Promise<IUserDocument> {
+    const startingBalances = await leaveService.initialBalancesForNewHire();
+
+    const user = await this.persistWithUniqueEmployeeId({
+      role: 'STAFF',
+      identity: { name: args.name, email: args.email },
+      buildUser: async (employeeId) => ({
+        employeeId,
+        name: String(args.name).trim(),
+        email: args.email,
+        googleId: args.googleId,
+        role: 'STAFF',
+        loginMethod: 'GOOGLE',
+        approvalStatus: 'PENDING',
+        emailVerified: true,
+        leaveBalances: startingBalances,
+        faceEmbedding: [],
+        ...(args.picture && { avatar: args.picture }),
+      }),
+    });
+
+    // Google verified the email up-front, so notify admins immediately
+    // (the password flow defers this until OTP verification).
+    void notificationService
+      .notifyAdmins({
+        type: 'SIGNUP_REQUEST',
+        title: 'New Google signup awaiting approval',
+        message: `${user.name} has requested access via Google Sign-In.`,
+        link: '/approvals#signups',
+        pill: { label: 'NEW SIGNUP', tone: 'info' },
+        rows: [
+          ['Name', user.name],
+          ['Email', args.email],
+          ['Requested ID', user.employeeId],
+          ['Method', 'Google'],
+        ],
+        noteText: 'Please review and approve this account to grant access.',
+      })
+      .catch((e) => logger.error(e));
+
+    return user;
   }
 
   /** Admin-created staff – APPROVED instantly, optional hire photo as avatar. */
