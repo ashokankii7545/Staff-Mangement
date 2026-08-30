@@ -7,6 +7,7 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import AppChip from '../../../shared/ui/AppChip';
 import LinearProgress from '@mui/material/LinearProgress';
+import Skeleton from '@mui/material/Skeleton';
 import LoginIcon from '@mui/icons-material/Login';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -19,7 +20,7 @@ import { useClock } from '../../../shared/hooks/useClock';
 
 dayjs.extend(duration);
 
-const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
+const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize, busy = false, statusLoading = false }) => {
   const { formattedTime, formattedDate } = useClock();
 
   // ── Multi-session state (Zoho People-style) ──
@@ -268,7 +269,26 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
           Not on shift → Clock In (works for the FIRST punch and every RE-entry
           after a clock-out). On shift → Clock Out. */}
       <Stack spacing={1.25} justifyContent="center">
-        {!isOnShift && (
+        {/* While today's status is still loading we don't yet know whether the
+            user is clocked in, so show a skeleton in place of the action button.
+            This prevents clicking "Clock In" before the real state arrives (which
+            could hit the server's "already clocked in" guard). The correct
+            Clock In / Clock Out button renders once the response lands. */}
+        {/* Show a skeleton in the button slot whenever we don't yet have a
+            reliable status to act on: the initial status load, OR while a punch
+            is in flight (busy) and we're waiting for the refreshed status. The
+            correct Clock In / Clock Out button only renders once we're idle. */}
+        {(statusLoading || busy) && (
+          <Skeleton
+            variant="rounded"
+            width="100%"
+            height={48}
+            animation="wave"
+            sx={{ borderRadius: 1 }}
+          />
+        )}
+
+        {!statusLoading && !busy && !isOnShift && (
           <AppButton
             variant="contained"
             fullWidth
@@ -288,7 +308,7 @@ const ClockWidget = ({ todayStatus, onClockIn, onClockOut, onRegularize }) => {
           </AppButton>
         )}
 
-        {isOnShift && (
+        {!statusLoading && !busy && isOnShift && (
           <AppButton
             variant="contained"
             fullWidth

@@ -37,6 +37,12 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
   const mutation = type === 'CLOCK_IN' ? CLOCK_IN : CLOCK_OUT;
   const [submitAttendance] = useAppMutation(mutation, {
     refetchQueries: [GET_TODAY_STATUS, GET_DASHBOARD_STATS, GET_WEEKLY_ATTENDANCE, GET_MY_ATTENDANCE],
+    // Wait for todayStatus to refetch BEFORE the mutation resolves so the
+    // ClockWidget flips to the correct Clock In/Out button immediately. Without
+    // this there was a stale window where "Clock In" stayed visible after a
+    // successful punch, letting a second click hit the server's
+    // "You are already clocked in" guard.
+    awaitRefetchQueries: true,
   });
 
   const isClockIn = type === 'CLOCK_IN';

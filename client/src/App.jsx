@@ -120,7 +120,7 @@ const appRoutes = [
 // ------------------------------------------------------------
 // APP ENTRY
 // ------------------------------------------------------------
-const GOOGLE_CLIENT_ID = import.meta.env.GOOGLE_CLIENT_ID ?? '';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
 const App = () => (
   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
