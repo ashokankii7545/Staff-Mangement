@@ -24,11 +24,21 @@ export const extractClientIp = (req: Request): string => {
 /** HTTP context factory used by expressMiddleware. */
 export const buildHttpContext = async ({ req }: { req: Request }): Promise<ContextValue> => {
   const user = await getAuthUser(req.headers.authorization);
+  
+  const originStr = req.headers.origin ?? `http://${req.headers.host}`;
+  let clientHostname = req.hostname;
+  try {
+    const url = new URL(originStr);
+    clientHostname = url.hostname;
+  } catch (e) {
+    // fallback if URL parsing fails
+  }
+
   return { 
     user, 
     clientIp: extractClientIp(req), 
-    hostname: req.hostname,
-    origin: req.headers.origin ?? `http://${req.headers.host}`,
+    hostname: clientHostname,
+    origin: originStr,
     loaders: createDataLoaders() 
   };
 };
