@@ -62,6 +62,8 @@ import {
   REQUEST_DOCUMENT,
   UPLOAD_DOCUMENT,
   DELETE_MY_DOCUMENT,
+  REQUEST_FINGERPRINT_REGISTRATION,
+  ADMIN_REMOVE_FINGERPRINT,
 } from '../../graphql/mutations';
 import {
   AppButton,
@@ -316,6 +318,29 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
       refetch?.();
     }
   }, [fpDeleteTarget, removeFingerprint, notify.success, refetch]);
+
+  // Admin actions: request fingerprint registration email + remove passkey
+  const [requestFpRegistration, { loading: requestingFp }] = useAppMutation(REQUEST_FINGERPRINT_REGISTRATION, {
+    successMessage: 'Fingerprint registration request sent to staff via email',
+    onError: (e) => notify.error(e.message),
+  });
+  const [adminRemoveFp] = useAppMutation(ADMIN_REMOVE_FINGERPRINT, {
+    successMessage: 'Fingerprint removed',
+    onCompleted: () => refetch?.(),
+    onError: (e) => notify.error(e.message),
+  });
+
+  const handleAdminRequestFp = useCallback(() => {
+    if (!staffId) return;
+    requestFpRegistration({ variables: { userId: staffId } });
+  }, [staffId, requestFpRegistration]);
+
+  const handleAdminRemoveFp = useCallback(async () => {
+    const credentialId = fpDeleteTarget;
+    setFpDeleteTarget(null);
+    if (!credentialId || !staffId) return;
+    adminRemoveFp({ variables: { userId: staffId, credentialId } });
+  }, [fpDeleteTarget, staffId, adminRemoveFp]);
 
   const user = data?.user;
   const officeOptions = useMemo(() => {
@@ -739,7 +764,7 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
                         <SectionCard
                           title="Device Fingerprint (Attendance)"
                           action={
-                            isSelfMode && (
+                            isSelfMode ? (
                               <Tooltip title={fpSupported ? 'Register this device for fingerprint attendance' : 'This browser cannot register fingerprints'}>
                                 <span>
                                   <AppButton
@@ -754,6 +779,16 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
                                   </AppButton>
                                 </span>
                               </Tooltip>
+                            ) : (
+                              <AppButton
+                                size="small"
+                                variant="outlined"
+                                startIcon={<FingerprintIcon fontSize="small" />}
+                                onClick={handleAdminRequestFp}
+                                loading={requestingFp}
+                              >
+                                Request Fingerprint
+                              </AppButton>
                             )
                           }
                         >
@@ -769,7 +804,7 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
                               description={
                                 isSelfMode
                                   ? 'Register this device so you can punch attendance with your fingerprint when the office enables Fingerprint mode.'
-                                  : 'This staff member has not registered a fingerprint device yet.'
+                                  : 'This staff member has not registered a fingerprint device yet. Click "Request Fingerprint" to send them a reminder email.'
                               }
                             />
                           ) : (
@@ -779,7 +814,7 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
                                   key={pk.id}
                                   icon={<FingerprintIcon />}
                                   label={`${pk.deviceType || 'Device'} · ${pk.createdAt ? dayjs(pk.createdAt).format('DD MMM YYYY') : ''}${pk.lastUsedAt ? ` · last used ${dayjs(pk.lastUsedAt).format('DD MMM')}` : ''}`}
-                                  onDelete={isSelfMode ? () => setFpDeleteTarget(pk.id) : undefined}
+                                  onDelete={() => setFpDeleteTarget(pk.id)}
                                   deleteIcon={<DeleteOutlineIcon />}
                                   variant="outlined"
                                   size="small"
@@ -1008,14 +1043,17 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
         variant="danger"
       />
 
-      {/* Remove a registered fingerprint device (staff self-view) */}
+      {/* Remove a registered fingerprint device (staff self-view or admin) */}
       <ConfirmDialog
         open={!!fpDeleteTarget}
         onClose={() => setFpDeleteTarget(null)}
-        onConfirm={handleRemoveFingerprint}
+        onConfirm={isSelfMode ? handleRemoveFingerprint : handleAdminRemoveFp}
         loading={fpBusy}
         title="Remove fingerprint device?"
-        description="This device will no longer be able to punch attendance with a fingerprint. You can register it again anytime."
+        description={isSelfMode
+          ? 'This device will no longer be able to punch attendance with a fingerprint. You can register it again anytime.'
+          : 'This will remove the staff member\'s registered fingerprint device. They will need to register again.'
+        }
         confirmText="Remove"
         variant="warning"
       />

@@ -152,6 +152,28 @@ export const BEGIN_FINGERPRINT_AUTHENTICATION = gql`
   }
 `;
 
+export const REQUEST_FINGERPRINT_REGISTRATION = gql`
+  mutation RequestFingerprintRegistration($userId: String!) {
+    requestFingerprintRegistration(userId: $userId)
+  }
+`;
+
+export const ADMIN_REMOVE_FINGERPRINT = gql`
+  mutation AdminRemoveFingerprint($userId: String!, $credentialId: String!) {
+    adminRemoveFingerprint(userId: $userId, credentialId: $credentialId) {
+      success
+      message
+      passkeys {
+        id
+        createdAt
+        lastUsedAt
+        deviceType
+        backedUp
+      }
+    }
+  }
+`;
+
 export const REGISTER_STAFF = gql`
   mutation RegisterStaff($input: RegisterInput!) {
     registerStaff(input: $input) {

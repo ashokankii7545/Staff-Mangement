@@ -37,8 +37,19 @@ const requiredPhotoField = {
   helperText: 'Face verification at punch time depends on this photo.',
 };
 
-export const ADD_STAFF_FIELDS = (officeOptions) => [
+export const ADD_STAFF_FIELDS = (officeOptions, attendanceMethod) => [
   photoField,
+  ...(attendanceMethod === 'FINGERPRINT' || attendanceMethod === 'BOTH' ? [{
+    name: '_fpInfo',
+    type: 'custom',
+    label: '',
+    gridSize: { xs: 12 },
+    render: () => (
+      <Alert severity="info" icon={false} sx={{ mb: 0 }}>
+        <strong>Fingerprint mode is active.</strong> After signup, the new staff member will receive an email to register their fingerprint on their own device for attendance.
+      </Alert>
+    ),
+  }] : []),
   { name: 'name', type: 'text', label: 'Full Name', required: true, gridSize: { xs: 12, sm: 6 } },
   { name: 'email', type: 'email', label: 'Email', required: true, gridSize: { xs: 12, sm: 6 } },
   { name: 'password', type: 'password', label: 'Password', required: true, gridSize: { xs: 12, sm: 6 } },

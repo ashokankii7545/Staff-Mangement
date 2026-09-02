@@ -286,6 +286,36 @@ class WebAuthnService {
     await userRepository.queries.updatePasskeys(String(user._id), updated);
     return updated.map((p) => this.toSummary(p));
   }
+
+  /**
+   * Admin action: send a "register your fingerprint" reminder email to a
+   * specific staff member. Rate-limited to one email per 24h per user.
+   */
+  public async requestRegistrationEmail(userId: string): Promise<boolean> {
+    const user = await userRepository.queries.findById(userId);
+    if (!user) throw new ValidationError('User not found.');
+    const last = (user as unknown as { lastFingerprintReminderAt?: Date | null }).lastFingerprintReminderAt;
+    const lastTs = last ? new Date(last).getTime() : 0;
+    if (Date.now() - lastTs < 24 * 60 * 60 * 1000) {
+      // Already sent recently – still report success so the admin sees a green toast.
+      return true;
+    }
+    const { mailService } = await import('../../shared/mail/mail.service.js');
+    await mailService.sendFingerprintReminderEmail(user);
+    await userRepository.queries.markFingerprintReminderSent(userId);
+    logger.info(`[webauthn] admin requested fingerprint registration email for user ${userId}`);
+    return true;
+  }
+
+  /** Admin action: remove a specific device credential from any staff member. */
+  public async adminRemovePasskey(userId: string, credentialId: string): Promise<PasskeySummary[]> {
+    const user = await userRepository.queries.findById(userId);
+    if (!user) throw new ValidationError('User not found.');
+    const updated = this.passkeysOf(user).filter((p) => p.id !== credentialId);
+    await userRepository.queries.updatePasskeys(userId, updated);
+    logger.info(`[webauthn] admin removed passkey ${credentialId} for user ${userId}`);
+    return updated.map((p) => this.toSummary(p));
+  }
 }
 
 export const webauthnService = WebAuthnService.getInstance();

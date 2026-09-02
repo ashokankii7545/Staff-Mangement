@@ -1,6 +1,6 @@
 import { useAppQuery, useAppMutation } from '../../../shared/hooks';
 import { REGISTER_STAFF } from '../../../graphql/mutations';
-import { GET_USERS, GET_DASHBOARD_STATS, GET_OFFICES } from '../../../graphql/queries';
+import { GET_USERS, GET_DASHBOARD_STATS, GET_OFFICES, GET_PUBLIC_CONFIG } from '../../../graphql/queries';
 import { FormDialog } from '../../../shared/ui';
 import {
   ADD_STAFF_FIELDS,
@@ -16,6 +16,8 @@ import {
  */
 const QuickAddStaffModal = ({ open, onClose }) => {
   const { data: officeData } = useAppQuery(GET_OFFICES);
+  const { data: configData } = useAppQuery(GET_PUBLIC_CONFIG);
+  const attendanceMethod = configData?.publicConfig?.attendanceMethod || 'FACE';
 
   const [registerStaff, { loading }] = useAppMutation(REGISTER_STAFF, {
     refetchQueries: [{ query: GET_USERS }, { query: GET_DASHBOARD_STATS }],
@@ -43,7 +45,7 @@ const QuickAddStaffModal = ({ open, onClose }) => {
       title="Onboard New Employee"
       loading={loading}
       maxWidth="sm"
-      fields={ADD_STAFF_FIELDS((officeData?.offices || []).map((o) => ({ value: o.id, label: o.name })))}
+      fields={ADD_STAFF_FIELDS((officeData?.offices || []).map((o) => ({ value: o.id, label: o.name })), attendanceMethod)}
       schema={QUICK_ADD_STAFF_SCHEMA}
       initialValues={BLANK_STAFF_FORM}
       onSubmit={handleSubmit}

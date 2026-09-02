@@ -442,6 +442,18 @@ class AuthService {
 
     // Welcome the new hire over email (fire-and-forget – never block signup).
     void mailService.sendStaffWelcomeEmail(createdUser).catch((e) => logger.error(e));
+
+    // If org uses FINGERPRINT / BOTH mode, remind the new hire to register.
+    void (async () => {
+      try {
+        const { settingsRepository } = await import('../settings/settings.repository.js');
+        const settings = await settingsRepository.queries.getOrCreate();
+        if (settings.attendanceMethod === 'FINGERPRINT' || settings.attendanceMethod === 'BOTH') {
+          await mailService.sendFingerprintReminderEmail(createdUser);
+        }
+      } catch (e) { logger.error('Fingerprint reminder email for new hire failed', e); }
+    })();
+
     return createdUser;
   }
 
@@ -589,8 +601,22 @@ class AuthService {
     }
 
     const updatedTarget = (await userRepository.queries.updateById(String(target._id), patch)) ?? target;
-    if (status === 'APPROVED') void mailService.sendUserApprovalEmail(updatedTarget);
+    if (status === 'APPROVED') {
+      void mailService.sendUserApprovalEmail(updatedTarget);
+      void (async () => {
+        try {
+          const { settingsRepository } = await import('../settings/settings.repository.js');
+          const settings = await settingsRepository.queries.getOrCreate();
+          if (settings.attendanceMethod === 'FINGERPRINT' || settings.attendanceMethod === 'BOTH') {
+            await mailService.sendFingerprintReminderEmail(updatedTarget);
+          }
+        } catch (e) {
+          logger.error('Fingerprint reminder email for approved user failed', e);
+        }
+      })();
+    }
     if (status === 'REJECTED') void mailService.sendSignupRejectionEmail(updatedTarget, note);
+
 
     // Delete the signup request notifications for all admins
     await notificationRepository.queries.deleteSignupRequests(String(target._id));

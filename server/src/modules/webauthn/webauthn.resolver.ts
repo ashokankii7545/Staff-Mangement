@@ -1,5 +1,5 @@
 import { webauthnService } from './webauthn.service.js';
-import { requireAuth } from '../../shared/guards/auth.guard.js';
+import { requireAuth, requireAdmin } from '../../shared/guards/auth.guard.js';
 import type { IUserDocument } from '../user/user.model.js';
 import type { ContextValue } from '../../graphql/context.js';
 
@@ -44,6 +44,27 @@ export const webauthnResolvers = {
       const user = requireAuth(ctx.user);
       const passkeys = await webauthnService.removePasskey(user, args.credentialId);
       return { success: true, message: 'Fingerprint removed.', passkeys };
+    },
+
+    /** Admin: send a "register your fingerprint" reminder email to a staff member. */
+    requestFingerprintRegistration: async (
+      _parent: unknown,
+      args: { userId: string },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      return webauthnService.requestRegistrationEmail(args.userId);
+    },
+
+    /** Admin: remove a specific device credential from any staff member. */
+    adminRemoveFingerprint: async (
+      _parent: unknown,
+      args: { userId: string; credentialId: string },
+      ctx: ContextValue,
+    ) => {
+      requireAdmin(ctx.user);
+      const passkeys = await webauthnService.adminRemovePasskey(args.userId, args.credentialId);
+      return { success: true, message: 'Fingerprint removed by admin.', passkeys };
     },
   },
 

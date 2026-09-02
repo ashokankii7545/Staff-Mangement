@@ -10,7 +10,7 @@ import StatusBadge from '../../shared/ui/StatusBadge';
 import Switch from '@mui/material/Switch';
 import AddIcon from '@mui/icons-material/Add';
 import GenericDataGrid from '../../shared/ui/GenericDataGrid';
-import { GET_USERS, GET_OFFICES } from '../../graphql/queries';
+import { GET_USERS, GET_OFFICES, GET_PUBLIC_CONFIG } from '../../graphql/queries';
 import {
   TOGGLE_USER_ACTIVE,
   REGISTER_STAFF,
@@ -85,6 +85,9 @@ const StaffManagement = () => {
   });
 
   const { data: officeData } = useAppQuery(GET_OFFICES);
+  const { data: configData } = useAppQuery(GET_PUBLIC_CONFIG);
+  const attendanceMethod = configData?.publicConfig?.attendanceMethod || 'FACE';
+
   const { isAdmin } = useAuth();
   const [addDialog, setAddDialog] = useState(false);
   // Full-screen profile dialog (admin only) – opened by clicking a table row.
@@ -300,7 +303,7 @@ const StaffManagement = () => {
         maxWidth="sm"
       >
         <GenericFormEngine
-          fields={ADD_STAFF_FIELDS(officeOptions)}
+          fields={ADD_STAFF_FIELDS(officeOptions, attendanceMethod)}
           onSubmit={handleRegister}
           initialValues={BLANK_FORM}
           submitLabel={registering ? 'Adding…' : 'Add Staff'}

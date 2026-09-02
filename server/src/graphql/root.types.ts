@@ -118,6 +118,10 @@ export const rootTypes = /* GraphQL */ `
     completeFingerprintRegistration(responseJson: String!): WebAuthnVerifyResult!
     removeFingerprint(credentialId: String!): WebAuthnVerifyResult!
     beginFingerprintAuthentication: WebAuthnOptionsPayload!
+
+    """Admin fingerprint management – request registration or remove a device."""
+    requestFingerprintRegistration(userId: String!): Boolean!
+    adminRemoveFingerprint(userId: String!, credentialId: String!): WebAuthnVerifyResult!
   }
 
   type Subscription {
