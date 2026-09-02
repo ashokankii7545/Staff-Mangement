@@ -10,7 +10,7 @@ import {
 } from '@simplewebauthn/server';
 import { env } from '../../config/env.js';
 import { logger } from '../../shared/logger/logger.js';
-import { AppError, AuthenticationError, ValidationError } from '../../shared/errors/app.errors.js';
+import { AppError, AuthenticationError, ValidationError, FingerprintVerificationError } from '../../shared/errors/app.errors.js';
 import { userRepository } from '../user/user.repository.js';
 import type { IUserDocument } from '../user/user.model.js';
 import type { PasskeyJson } from '../../db/schema/user.schema.js';
@@ -281,7 +281,7 @@ class WebAuthnService {
       });
 
       if (!verification.verified) {
-        throw new AuthenticationError('Fingerprint verification failed. Please try again.');
+        throw new FingerprintVerificationError('Fingerprint verification failed. Please try again.');
       }
 
       const { credentialID, newCounter } = verification.authenticationInfo;
@@ -293,7 +293,7 @@ class WebAuthnService {
     } catch (error) {
       logger.error('[webauthn] punch authentication failed', error);
       if (error instanceof AppError) throw error;
-      throw new AuthenticationError('Fingerprint verification failed. Please try again.');
+      throw new FingerprintVerificationError('Fingerprint verification failed. Please try again.');
     } finally {
       this.consumeChallenge(userId, 'authentication');
     }

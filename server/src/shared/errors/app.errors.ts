@@ -57,7 +57,12 @@ export class FingerprintNotRegisteredError extends AppError {
   }
 }
 
-/** FINGERPRINT mode requires a fresh WebAuthn assertion before a punch. */
+export class FingerprintVerificationError extends AppError {
+  constructor(message = 'Fingerprint verification failed. Please try again.') {
+    super(message, 'FINGERPRINT_VERIFICATION_FAILED');
+  }
+}
+
 export class FingerprintRequiredError extends AppError {
   constructor(message = 'Fingerprint verification is required to punch.') {
     super(message, 'FINGERPRINT_REQUIRED');
