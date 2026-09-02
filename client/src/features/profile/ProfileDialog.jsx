@@ -488,8 +488,8 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
         name: form.name.trim(),
         email: form.email.trim(),
         role: isSelfAccount ? user.role : form.role, // never self-demote
-        shiftStartTime: form.shiftStartTime || null,
-        shiftEndTime: form.shiftEndTime || null,
+        shiftStartTime: form.shiftStartTime || '',
+        shiftEndTime: form.shiftEndTime || '',
         attendanceMethod: form.attendanceMethod || null,
         restrictedPages: isSelfAccount ? [] : form.restrictedPages,
         leaveBalances: {

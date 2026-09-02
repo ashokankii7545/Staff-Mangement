@@ -448,10 +448,18 @@ class AuthService {
       try {
         const { settingsRepository } = await import('../settings/settings.repository.js');
         const settings = await settingsRepository.queries.getOrCreate();
-        if (settings.attendanceMethod === 'FINGERPRINT' || settings.attendanceMethod === 'BOTH') {
+        const method = createdUser.attendanceMethod || settings.attendanceMethod;
+        if (method === 'FINGERPRINT' || method === 'BOTH') {
           await mailService.sendFingerprintReminderEmail(createdUser);
+          await notificationService.push({
+            recipientIds: [String(createdUser._id)],
+            title: 'Action Required: Register Fingerprint',
+            message: 'Your office requires fingerprint attendance. Please register your device.',
+            type: 'GENERIC',
+            link: '/profile',
+          });
         }
-      } catch (e) { logger.error('Fingerprint reminder email for new hire failed', e); }
+      } catch (e) { logger.error('Fingerprint reminder for new hire failed', e); }
     })();
 
     return createdUser;
@@ -607,11 +615,19 @@ class AuthService {
         try {
           const { settingsRepository } = await import('../settings/settings.repository.js');
           const settings = await settingsRepository.queries.getOrCreate();
-          if (settings.attendanceMethod === 'FINGERPRINT' || settings.attendanceMethod === 'BOTH') {
+          const method = updatedTarget.attendanceMethod || settings.attendanceMethod;
+          if (method === 'FINGERPRINT' || method === 'BOTH') {
             await mailService.sendFingerprintReminderEmail(updatedTarget);
+            await notificationService.push({
+              recipientIds: [String(updatedTarget._id)],
+              title: 'Action Required: Register Fingerprint',
+              message: 'Your office requires fingerprint attendance. Please register your device.',
+              type: 'GENERIC',
+              link: '/profile',
+            });
           }
         } catch (e) {
-          logger.error('Fingerprint reminder email for approved user failed', e);
+          logger.error('Fingerprint reminder for approved user failed', e);
         }
       })();
     }

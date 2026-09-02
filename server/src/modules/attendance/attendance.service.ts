@@ -122,6 +122,15 @@ class AttendanceService {
     void mailService
       .sendFingerprintReminderEmail(user)
       .catch((error) => logger.error('Fingerprint reminder email failed', error));
+    void notificationService
+      .push({
+        recipientIds: [String(user._id)],
+        title: 'Fingerprint Required',
+        message: 'Your office requires fingerprint attendance. Please register your device.',
+        type: 'GENERIC',
+        link: '/profile',
+      })
+      .catch((error) => logger.error('Fingerprint reminder notification failed', error));
     await userRepository.queries.markFingerprintReminderSent(String(user._id));
   }
 

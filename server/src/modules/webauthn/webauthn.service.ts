@@ -320,9 +320,19 @@ class WebAuthnService {
       return true;
     }
     const { mailService } = await import('../../shared/mail/mail.service.js');
+    const { notificationService } = await import('../notification/notification.service.js');
+    
     await mailService.sendFingerprintReminderEmail(user);
+    await notificationService.push({
+      recipientIds: [userId],
+      title: 'Action Required: Register Fingerprint',
+      message: 'Admin has requested that you register your device fingerprint for attendance.',
+      type: 'GENERIC',
+      link: '/profile',
+    });
+
     await userRepository.queries.markFingerprintReminderSent(userId);
-    logger.info(`[webauthn] admin requested fingerprint registration email for user ${userId}`);
+    logger.info(`[webauthn] admin requested fingerprint registration email and notification for user ${userId}`);
     return true;
   }
 
