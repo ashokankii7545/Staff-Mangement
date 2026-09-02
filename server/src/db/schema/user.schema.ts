@@ -128,6 +128,8 @@ export const users = pgTable(
     /** Admin-managed compensation (nullable – set only when an admin fills it in). */
     salary: jsonb('salary').$type<SalaryJson | null>(),
     bonus: jsonb('bonus').$type<BonusJson | null>(),
+    /** Per-user attendance method override. If null, falls back to global settings. */
+    attendanceMethod: text('attendance_method'),
     ...timestamps,
   },
   (t) => ({

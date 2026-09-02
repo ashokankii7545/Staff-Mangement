@@ -58,6 +58,7 @@ export interface IUser {
   /** Last "register your fingerprint" reminder email timestamp (daily dedupe). */
   lastFingerprintReminderAt?: Date | null;
   shiftStartTime: string;
+  attendanceMethod?: string | null;
   shiftEndTime: string;
   createdAt?: Date;
   updatedAt?: Date;

@@ -190,7 +190,8 @@ class AttendanceService {
     // via WebAuthn – the camera/selfie/liveness pipeline is skipped entirely.
     // requireUserVerification is enforced so the phone MUST use the fingerprint
     // / Face-ID / PIN – a mere presence tap is rejected by the library.
-    const attendanceMethod = settings?.attendanceMethod ?? 'FACE';
+    // Use user's personal override if set, otherwise global setting
+    const attendanceMethod = user.attendanceMethod || settings?.attendanceMethod || 'FACE';
     let fingerprintVerified = false;
     if (attendanceMethod === 'FINGERPRINT' || attendanceMethod === 'BOTH') {
       if (input.webauthnResponse) {

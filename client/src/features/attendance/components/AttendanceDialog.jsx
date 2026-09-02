@@ -41,7 +41,7 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
 
   // Org-wide punch method (FACE / FINGERPRINT / BOTH) from public settings.
   const { data: configData } = useAppQuery(GET_PUBLIC_CONFIG);
-  const attendanceMethod = configData?.publicConfig?.attendanceMethod || 'FACE';
+  const attendanceMethod = user?.attendanceMethod || configData?.publicConfig?.attendanceMethod || 'FACE';
 
   // Which identity step to show when the admin allows BOTH.
   const [mode, setMode] = useState('FACE');

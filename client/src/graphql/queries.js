@@ -12,6 +12,7 @@ export const GET_ME = gql`
       isActive
       themePreference
       restrictedPages
+      attendanceMethod
       assignedOffice {
         id
         name
@@ -277,6 +278,7 @@ export const GET_USERS = gql`
         email
         role
         restrictedPages
+        attendanceMethod
         isActive
         approvalStatus
         avatar
@@ -733,6 +735,7 @@ export const GET_STAFF_PROFILE = gql`
       createdAt
       shiftStartTime
       shiftEndTime
+      attendanceMethod
       assignedOffice {
         id
         name

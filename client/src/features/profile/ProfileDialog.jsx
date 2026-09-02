@@ -191,6 +191,7 @@ const blankForm = (user) => ({
   officeId: user.assignedOffice?.id ?? '',
   shiftStartTime: user.shiftStartTime ?? '',
   shiftEndTime: user.shiftEndTime ?? '',
+  attendanceMethod: user.attendanceMethod ?? '',
   casual: user.leaveBalances?.casual ?? 0,
   sick: user.leaveBalances?.sick ?? 0,
   earned: user.leaveBalances?.earned ?? 0,
@@ -474,6 +475,7 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
       form.email !== b.email ||
       form.role !== b.role ||
       form.officeId !== b.officeId ||
+      form.attendanceMethod !== b.attendanceMethod ||
       form.shiftStartTime !== b.shiftStartTime ||
       form.shiftEndTime !== b.shiftEndTime ||
       changed(form.restrictedPages, b.restrictedPages) ||
@@ -488,6 +490,7 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
         role: isSelfAccount ? user.role : form.role, // never self-demote
         shiftStartTime: form.shiftStartTime || null,
         shiftEndTime: form.shiftEndTime || null,
+        attendanceMethod: form.attendanceMethod || null,
         restrictedPages: isSelfAccount ? [] : form.restrictedPages,
         leaveBalances: {
           casual: parseInt(form.casual, 10) || 0,
@@ -744,6 +747,22 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
                                 options={ROLE_OPTS}
                                 disabled={isSelfAccount}
                                 helperText={isSelfAccount ? 'You cannot change your own role' : ''}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6 }}>
+                              <SmartField
+                                label="Attendance Method Override"
+                                value={form.attendanceMethod || ''}
+                                editing={editing}
+                                onChange={(v) => setField({ attendanceMethod: v })}
+                                options={[
+                                  { value: '', label: 'Use Global Settings' },
+                                  { value: 'FACE', label: 'Face Selfie Only' },
+                                  { value: 'FINGERPRINT', label: 'Fingerprint Only' },
+                                  { value: 'BOTH', label: 'Both' },
+                                ]}
+                                disabled={isSelfMode}
+                                helperText="Admin override for punch identity."
                               />
                             </Grid>
                           </Grid>
