@@ -517,7 +517,7 @@ class MailService {
       introText: 'Your organisation has enabled fingerprint-based attendance. Please register your fingerprint so you can clock in / out.',
       lines: [
         '<strong>Why?</strong> Attendance punches now require a fingerprint / Face-ID confirmation from your phone.',
-        '<strong>How?</strong> Open the app → <strong>My Profile</strong> → <strong>Fingerprint</strong> → tap “Register Fingerprint”.',
+        '<strong>How?</strong> Open the app → <strong>My Profile</strong> → <strong>Device Fingerprint</strong> → tap “Add This Device”.',
       ],
       buttonText: 'Register Fingerprint',
       buttonPath: '/profile',

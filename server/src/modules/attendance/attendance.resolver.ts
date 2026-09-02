@@ -92,6 +92,7 @@ export const attendanceResolvers = {
         type: 'CLOCK_IN',
         input: args.input,
         ipAddress: ctx.clientIp,
+        clientContext: { rpId: ctx.hostname, origin: ctx.origin }
       });
     },
 
@@ -106,6 +107,7 @@ export const attendanceResolvers = {
         type: 'CLOCK_OUT',
         input: args.input,
         ipAddress: ctx.clientIp,
+        clientContext: { rpId: ctx.hostname, origin: ctx.origin }
       });
     },
 

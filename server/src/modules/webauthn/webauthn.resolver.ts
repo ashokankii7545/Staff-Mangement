@@ -12,7 +12,7 @@ export const webauthnResolvers = {
       ctx: ContextValue,
     ) => {
       const user = requireAuth(ctx.user);
-      return webauthnService.beginRegistration(user);
+      return webauthnService.beginRegistration(user, { rpId: ctx.hostname, origin: ctx.origin });
     },
 
     /** Ceremony #1b – verify the phone's attestation and persist the passkey. */
@@ -22,7 +22,7 @@ export const webauthnResolvers = {
       ctx: ContextValue,
     ) => {
       const user = requireAuth(ctx.user);
-      return webauthnService.completeRegistration(user, args.responseJson);
+      return webauthnService.completeRegistration(user, args.responseJson, { rpId: ctx.hostname, origin: ctx.origin });
     },
 
     /** Ceremony #2a – create punch-time authentication options (challenge). */
@@ -32,7 +32,7 @@ export const webauthnResolvers = {
       ctx: ContextValue,
     ) => {
       const user = requireAuth(ctx.user);
-      return webauthnService.beginAuthentication(user);
+      return webauthnService.beginAuthentication(user, { rpId: ctx.hostname, origin: ctx.origin });
     },
 
     /** Staff self-service: forget a specific device credential. */

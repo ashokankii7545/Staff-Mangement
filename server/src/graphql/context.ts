@@ -7,6 +7,8 @@ import { createDataLoaders, type DataLoaders } from '../shared/utils/dataloader.
 export interface ContextValue {
   user: IUserDocument | null;
   clientIp: string;
+  hostname: string;
+  origin: string;
   loaders: DataLoaders;
 }
 
@@ -22,7 +24,13 @@ export const extractClientIp = (req: Request): string => {
 /** HTTP context factory used by expressMiddleware. */
 export const buildHttpContext = async ({ req }: { req: Request }): Promise<ContextValue> => {
   const user = await getAuthUser(req.headers.authorization);
-  return { user, clientIp: extractClientIp(req), loaders: createDataLoaders() };
+  return { 
+    user, 
+    clientIp: extractClientIp(req), 
+    hostname: req.hostname,
+    origin: req.headers.origin ?? `http://${req.headers.host}`,
+    loaders: createDataLoaders() 
+  };
 };
 
 /** WebSocket context factory used by graphql-ws useServer(). */
@@ -33,5 +41,14 @@ export const buildWsContext = async (ctx: {
   const token =
     (params.authorization as string | undefined) ?? (params.Authorization as string | undefined) ?? '';
   const user = await getAuthUser(token);
-  return { user, clientIp: '', loaders: createDataLoaders() };
+
+  // Note: the socket object type depends on the server (e.g. uWebSockets vs Node).
+  // We provide a fallback for the IP since WebSocket headers can be tricky.
+  return { 
+    user, 
+    clientIp: '', 
+    hostname: 'localhost',
+    origin: 'http://localhost',
+    loaders: createDataLoaders() 
+  };
 };

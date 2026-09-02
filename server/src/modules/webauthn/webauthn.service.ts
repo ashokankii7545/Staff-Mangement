@@ -127,11 +127,14 @@ class WebAuthnService {
   }
 
   /** Ceremony #1a – build options for `navigator.credentials.create()`. */
-  public async beginRegistration(user: IUserDocument): Promise<{ optionsJson: string }> {
+  public async beginRegistration(
+    user: IUserDocument,
+    clientContext?: { rpId: string; origin: string }
+  ): Promise<{ optionsJson: string }> {
     const passkeys = this.passkeysOf(user);
     const options = await generateRegistrationOptions({
       rpName: this.rpName,
-      rpID: this.rpId,
+      rpID: clientContext?.rpId || this.rpId,
       userName: user.email || user.employeeId || String(user._id),
       userDisplayName: user.name || user.employeeId || 'Staff',
       // Stable per-user id – discoverable passkeys are mapped to (rpID + userID).
@@ -161,15 +164,19 @@ class WebAuthnService {
   public async completeRegistration(
     user: IUserDocument,
     responseJson: string,
+    clientContext?: { rpId: string; origin: string }
   ): Promise<{ success: boolean; message: string; passkeys: PasskeySummary[] }> {
     const userId = String(user._id);
     try {
       const response = JSON.parse(responseJson) as RegistrationResponseJSON;
+      const expectedOrigin = clientContext?.origin ? [clientContext.origin, ...this.origins] : this.origins;
+      const expectedRPID = clientContext?.rpId ? [clientContext.rpId, this.rpId] : this.rpId;
+      
       const verification = await verifyRegistrationResponse({
         response,
         expectedChallenge: this.challengeFor(userId, 'registration'),
-        expectedOrigin: this.origins,
-        expectedRPID: this.rpId,
+        expectedOrigin,
+        expectedRPID,
         requireUserVerification: true,
       });
 
@@ -211,15 +218,19 @@ class WebAuthnService {
   }
 
 
-  /** Ceremony #2a – build options for `navigator.credentials.get()` (a punch). */
-  public async beginAuthentication(user: IUserDocument): Promise<{ optionsJson: string; hasPasskey: boolean }> {
+  /** Ceremony #2a – build options for `navigator.credentials.get()`. */
+  public async beginAuthentication(
+    user: IUserDocument,
+    clientContext?: { rpId: string; origin: string }
+  ): Promise<{ optionsJson: string; hasPasskey: boolean }> {
     const passkeys = this.passkeysOf(user);
     if (passkeys.length === 0) {
       return { optionsJson: '', hasPasskey: false };
     }
+    const hasPasskey = true;
 
     const options = await generateAuthenticationOptions({
-      rpID: this.rpId,
+      rpID: clientContext?.rpId || this.rpId,
       allowCredentials: passkeys.map((p) => ({
         id: p.id as Base64URLString,
         transports: (p.transports ?? []) as AuthenticatorTransportFuture[],
@@ -229,7 +240,7 @@ class WebAuthnService {
     });
 
     this.rememberChallenge(String(user._id), 'authentication', options.challenge);
-    return { optionsJson: JSON.stringify(options), hasPasskey: true };
+    return { optionsJson: JSON.stringify(options), hasPasskey };
   }
 
   /**
@@ -237,27 +248,35 @@ class WebAuthnService {
    * Called from the attendance service; consumes the challenge on every attempt.
    * Throws AuthenticationError when the fingerprint/Face-ID did not verify.
    */
-  public async verifyAuthenticationForPunch(user: IUserDocument, responseJson: string): Promise<void> {
+  public async verifyAuthenticationForPunch(
+    user: IUserDocument,
+    responseJson: string,
+    clientContext?: { rpId: string; origin: string }
+  ): Promise<void> {
     const userId = String(user._id);
     try {
       const response = JSON.parse(responseJson) as AuthenticationResponseJSON;
       const passkeys = this.passkeysOf(user);
-      const credential = passkeys.find((p) => p.id === response.id);
-      if (!credential) {
-        throw new AuthenticationError('Fingerprint not recognised for this account.');
+      const passkey = passkeys.find((p) => p.id === response.id);
+      
+      if (!passkey) {
+        throw new AuthenticationError(`Passkey ${response.id} is not registered for this user.`);
       }
+
+      const expectedOrigin = clientContext?.origin ? [clientContext.origin, ...this.origins] : this.origins;
+      const expectedRPID = clientContext?.rpId ? [clientContext.rpId, this.rpId] : this.rpId;
 
       const verification = await verifyAuthenticationResponse({
         response,
         expectedChallenge: this.challengeFor(userId, 'authentication'),
-        expectedOrigin: this.origins,
-        expectedRPID: this.rpId,
+        expectedOrigin,
+        expectedRPID,
         requireUserVerification: true,
         credential: {
-          id: credential.id as Base64URLString,
-          publicKey: new Uint8Array(Buffer.from(credential.publicKey, 'base64url')),
-          counter: credential.counter ?? 0,
-          transports: (credential.transports ?? []) as AuthenticatorTransportFuture[],
+          id: passkey.id as Base64URLString,
+          publicKey: new Uint8Array(Buffer.from(passkey.publicKey, 'base64url')),
+          counter: passkey.counter ?? 0,
+          transports: (passkey.transports ?? []) as AuthenticatorTransportFuture[],
         },
       });
 

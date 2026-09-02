@@ -130,8 +130,9 @@ class AttendanceService {
     type: 'CLOCK_IN' | 'CLOCK_OUT';
     input: ClockInputShape;
     ipAddress?: string | null;
+    clientContext?: { rpId: string; origin: string };
   }): Promise<ClockResult> {
-    const { userId, type, input, ipAddress } = args;
+    const { userId, type, input, ipAddress, clientContext } = args;
     const today = todayISO();
 
     // ── Multi-session sequence guard (Zoho People-style) ──
@@ -194,7 +195,7 @@ class AttendanceService {
     if (attendanceMethod === 'FINGERPRINT' || attendanceMethod === 'BOTH') {
       if (input.webauthnResponse) {
         // Throws AuthenticationError when the fingerprint/Face-ID check fails.
-        await webauthnService.verifyAuthenticationForPunch(user, input.webauthnResponse);
+        await webauthnService.verifyAuthenticationForPunch(user, input.webauthnResponse, clientContext);
         fingerprintVerified = true;
       } else if (attendanceMethod === 'FINGERPRINT') {
         if (!webauthnService.hasPasskey(user)) {
