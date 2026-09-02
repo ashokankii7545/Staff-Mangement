@@ -2,6 +2,7 @@ import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
 import { invalidateAuthUser } from '../../shared/security/auth-user-cache.js';
 import { users } from '../../db/schema/user.schema.js';
+import type { PasskeyJson } from '../../db/schema/user.schema.js';
 import { hashPassword } from '../../shared/utils/password.util.js';
 import type { IUser, IUserDocument } from './user.model.js';
 
@@ -306,6 +307,32 @@ export class UserRepository extends BaseRepository<typeof users> {
             updatedAt: new Date(),
           })
           .where(eq(users.id, userId)),
+      ),
+
+    /** Replace a user's passkey list (WebAuthn fingerprints) + refresh auth cache. */
+    updatePasskeys: (userId: string, passkeys: PasskeyJson[]): Promise<IUserDocument | null> =>
+      this.exec('updatePasskeys', async () => {
+        const row = (await this.qUpdateById(userId, { passkeys } as never)) as IUserDocument | null;
+        invalidateAuthUser(userId);
+        return row;
+      }),
+
+    /** Stamp the last "register your fingerprint" reminder (daily dedupe). */
+    markFingerprintReminderSent: (userId: string): Promise<unknown> =>
+      this.exec('markFingerprintReminderSent', () =>
+        this.qUpdateById(userId, { lastFingerprintReminderAt: new Date() } as never),
+      ),
+
+    /** Active, approved staff who have NO fingerprint registered yet. */
+    findUsersWithoutPasskeys: (): Promise<IUserDocument[]> =>
+      this.exec('findUsersWithoutPasskeys', () =>
+        this.qFindMany(
+          and(
+            eq(users.isActive, true),
+            eq(users.approvalStatus, 'APPROVED'),
+            sql`jsonb_array_length(${users.passkeys}) = 0`,
+          ),
+        ) as Promise<IUserDocument[]>,
       ),
 
     /**

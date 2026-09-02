@@ -16,3 +16,4 @@ export * from './ahooks';
 
 export * from './usePersistentGridState';
 export * from './useFaceRecognition';
+export * from './useFingerprint';

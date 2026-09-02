@@ -40,6 +40,8 @@ import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import CircleIcon from '@mui/icons-material/Circle';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
+import Chip from '@mui/material/Chip';
 
 import dayjs from 'dayjs';
 
@@ -70,6 +72,7 @@ import {
   EmptyState,
   useNotification,
 } from '../../shared/ui';
+import { useFingerprint } from '../../shared/hooks/useFingerprint';
 import PageAccessMatrix from '../admin/components/PageAccessMatrix';
 
 // ── Tab metadata. `self` flags which tabs a staff member sees in self-view. ──
@@ -270,6 +273,49 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
     fetchPolicy: 'cache-and-network',
   });
   const notifications = notifQuery.data?.myNotifications || [];
+
+  // ── Device fingerprint (passkey) management — self view only ──
+  // The biometric itself never leaves the device; only a public-key credential
+  // is stored server-side. Staff register their own phone/laptop here.
+  const {
+    registerFingerprint,
+    removeFingerprint,
+    browserSupported: fpSupported,
+    busy: fpBusy,
+    errorMessage: fpError,
+    clearError: clearFpError,
+  } = useFingerprint();
+  const [fpDeleteTarget, setFpDeleteTarget] = useState(null);
+  const passkeys = useMemo(
+    () => (isSelfMode ? selfProfile.data?.me?.passkeys : adminProfile.data?.user?.passkeys) || [],
+    [isSelfMode, selfProfile.data, adminProfile.data],
+  );
+
+  useEffect(() => {
+    if (fpError) {
+      notify.error(fpError);
+      clearFpError();
+    }
+  }, [fpError, notify.error, clearFpError]);
+
+  const handleRegisterFingerprint = useCallback(async () => {
+    const result = await registerFingerprint();
+    if (result?.success) {
+      notify.success(result.message || 'Fingerprint registered successfully!');
+      refetch?.();
+    }
+  }, [registerFingerprint, notify.success, refetch]);
+
+  const handleRemoveFingerprint = useCallback(async () => {
+    const credentialId = fpDeleteTarget;
+    setFpDeleteTarget(null);
+    if (!credentialId) return;
+    const result = await removeFingerprint(credentialId);
+    if (result?.success) {
+      notify.success(result.message || 'Fingerprint removed.');
+      refetch?.();
+    }
+  }, [fpDeleteTarget, removeFingerprint, notify.success, refetch]);
 
   const user = data?.user;
   const officeOptions = useMemo(() => {
@@ -687,6 +733,67 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
                           onDelete={(doc) => setDeleteDoc(doc)}
                         />
                       </Grid>
+
+                      {/* Device fingerprint registration (attendance identity) */}
+                      <Grid size={{ xs: 12 }}>
+                        <SectionCard
+                          title="Device Fingerprint (Attendance)"
+                          action={
+                            isSelfMode && (
+                              <Tooltip title={fpSupported ? 'Register this device for fingerprint attendance' : 'This browser cannot register fingerprints'}>
+                                <span>
+                                  <AppButton
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<FingerprintIcon fontSize="small" />}
+                                    onClick={handleRegisterFingerprint}
+                                    loading={fpBusy}
+                                    disabled={!fpSupported}
+                                  >
+                                    Add This Device
+                                  </AppButton>
+                                </span>
+                              </Tooltip>
+                            )
+                          }
+                        >
+                          {isSelfMode && !fpSupported && (
+                            <Typography variant="caption" color="warning.dark" display="block" sx={{ mb: 1 }}>
+                              This browser/device does not support fingerprint registration. Open the app on a phone or laptop with a fingerprint sensor / Face ID / Windows Hello.
+                            </Typography>
+                          )}
+                          {passkeys.length === 0 ? (
+                            <EmptyState
+                              compact
+                              title="No fingerprint registered"
+                              description={
+                                isSelfMode
+                                  ? 'Register this device so you can punch attendance with your fingerprint when the office enables Fingerprint mode.'
+                                  : 'This staff member has not registered a fingerprint device yet.'
+                              }
+                            />
+                          ) : (
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              {passkeys.map((pk) => (
+                                <Chip
+                                  key={pk.id}
+                                  icon={<FingerprintIcon />}
+                                  label={`${pk.deviceType || 'Device'} · ${pk.createdAt ? dayjs(pk.createdAt).format('DD MMM YYYY') : ''}${pk.lastUsedAt ? ` · last used ${dayjs(pk.lastUsedAt).format('DD MMM')}` : ''}`}
+                                  onDelete={isSelfMode ? () => setFpDeleteTarget(pk.id) : undefined}
+                                  deleteIcon={<DeleteOutlineIcon />}
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              ))}
+                            </Stack>
+                          )}
+                          {isSelfMode && (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                              Your fingerprint never leaves this device — only a secure credential is stored, so it cannot be copied or misused.
+                            </Typography>
+                          )}
+                        </SectionCard>
+                      </Grid>
                     </Grid>
                   )}
 
@@ -899,6 +1006,18 @@ const ProfileDialog = ({ open, staffId, onClose, onChanged, mode = 'admin' }) =>
         description={`“${deleteDoc?.title ?? ''}” will be permanently removed. This cannot be undone.`}
         confirmText="Delete"
         variant="danger"
+      />
+
+      {/* Remove a registered fingerprint device (staff self-view) */}
+      <ConfirmDialog
+        open={!!fpDeleteTarget}
+        onClose={() => setFpDeleteTarget(null)}
+        onConfirm={handleRemoveFingerprint}
+        loading={fpBusy}
+        title="Remove fingerprint device?"
+        description="This device will no longer be able to punch attendance with a fingerprint. You can register it again anytime."
+        confirmText="Remove"
+        variant="warning"
       />
     </>
   );

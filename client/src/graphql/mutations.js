@@ -102,6 +102,56 @@ export const CLOCK_OUT = gql`
   }
 `;
 
+// ── Fingerprint (WebAuthn/passkey) ceremonies ──────────────────────────────
+export const BEGIN_FINGERPRINT_REGISTRATION = gql`
+  mutation BeginFingerprintRegistration {
+    beginFingerprintRegistration {
+      optionsJson
+    }
+  }
+`;
+
+export const COMPLETE_FINGERPRINT_REGISTRATION = gql`
+  mutation CompleteFingerprintRegistration($responseJson: String!) {
+    completeFingerprintRegistration(responseJson: $responseJson) {
+      success
+      message
+      passkeys {
+        id
+        createdAt
+        lastUsedAt
+        deviceType
+        backedUp
+      }
+    }
+  }
+`;
+
+export const REMOVE_FINGERPRINT = gql`
+  mutation RemoveFingerprint($credentialId: String!) {
+    removeFingerprint(credentialId: $credentialId) {
+      success
+      message
+      passkeys {
+        id
+        createdAt
+        lastUsedAt
+        deviceType
+        backedUp
+      }
+    }
+  }
+`;
+
+export const BEGIN_FINGERPRINT_AUTHENTICATION = gql`
+  mutation BeginFingerprintAuthentication {
+    beginFingerprintAuthentication {
+      optionsJson
+      hasPasskey
+    }
+  }
+`;
+
 export const REGISTER_STAFF = gql`
   mutation RegisterStaff($input: RegisterInput!) {
     registerStaff(input: $input) {
@@ -153,6 +203,7 @@ export const UPDATE_SETTINGS = gql`
       shiftEndTime
       lateThresholdMinutes
       workingDays
+      attendanceMethod
       vpnStrictMode
       autoApproveAttendance
       regularizationAutoApproveDays

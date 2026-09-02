@@ -13,6 +13,8 @@ export interface IAttendance {
   isCoverDuty: boolean;
   type: (typeof PUNCH_TYPES)[number] | string;
   selfieUrl: string;
+  /** How this punch was verified: 'FACE' | 'FINGERPRINT'. */
+  identityMethod?: string;
   location: IPunchLocation;
   ipAddress: string;
   vpnDetected: boolean;

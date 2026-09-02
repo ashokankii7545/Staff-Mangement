@@ -43,7 +43,9 @@ export const attendance = pgTable(
     punchedOffice: uuid('punched_office').references(() => offices.id, { onDelete: 'set null' }),
     isCoverDuty: boolean('is_cover_duty').notNull().default(false),
     type: text('type').notNull(), // CLOCK_IN | CLOCK_OUT
-    selfieUrl: text('selfie_url').notNull(),
+    selfieUrl: text('selfie_url').notNull().default(''), // empty → fingerprint punch
+    /** How this punch was verified: 'FACE' | 'FINGERPRINT'. */
+    identityMethod: text('identity_method').notNull().default('FACE'),
     location: jsonb('location').$type<PunchLocationJson>().notNull(),
     ipAddress: text('ip_address').notNull().default(''),
     vpnDetected: boolean('vpn_detected').notNull().default(false),

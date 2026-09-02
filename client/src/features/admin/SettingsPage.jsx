@@ -13,6 +13,9 @@ import Switch from '@mui/material/Switch';
 import Chip from '@mui/material/Chip';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import SecurityIcon from '@mui/icons-material/Security';
+import FaceIcon from '@mui/icons-material/Face';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SaveIcon from '@mui/icons-material/Save';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -37,6 +40,28 @@ const WEEK_DAYS = [
   'Sunday',
 ];
 
+// Punch identity options (kept in sync with server ATTENDANCE_METHODS).
+const METHOD_OPTIONS = [
+  {
+    value: 'FACE',
+    label: 'Face Selfie',
+    icon: FaceIcon,
+    caption: 'Camera selfie with server-side face match (current default).',
+  },
+  {
+    value: 'FINGERPRINT',
+    label: 'Fingerprint',
+    icon: FingerprintIcon,
+    caption: 'Phone fingerprint / Face ID via the device secure prompt.',
+  },
+  {
+    value: 'BOTH',
+    label: 'Both',
+    icon: DoneAllIcon,
+    caption: 'Staff picks face or fingerprint at punch time.',
+  },
+];
+
 const DEFAULTS = {
   organizationName: 'EdgeAttendance',
   officeName: 'Head Office',
@@ -47,6 +72,7 @@ const DEFAULTS = {
   shiftEndTime: '18:00',
   lateThresholdMinutes: 15,
   workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+  attendanceMethod: 'FACE',
   vpnStrictMode: false,
   autoApproveAttendance: true,
   mailFromName: 'EdgeAttendance Admin',
@@ -136,6 +162,16 @@ const SettingsPage = () => {
         input: {
           workingDays: form.workingDays,
           vpnStrictMode: !!form.vpnStrictMode,
+        },
+      },
+    });
+  };
+
+  const savePunchMethodSettings = () => {
+    updateSettings({
+      variables: {
+        input: {
+          attendanceMethod: form.attendanceMethod || 'FACE',
         },
       },
     });
@@ -298,6 +334,70 @@ const SettingsPage = () => {
               loading={saving}
             >
               Save Policy
+            </AppButton>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* ── Punch Verification Method (FACE / FINGERPRINT / BOTH) ── */}
+      <Card>
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <FingerprintIcon color="primary" />
+            <Typography variant="subtitle1">Punch Verification Method</Typography>
+          </Stack>
+          <Divider sx={{ my: 2 }} />
+
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+            How staff confirm their identity when clocking in/out. Switching to FINGERPRINT or BOTH
+            automatically emails every staff member who has not registered a fingerprint yet.
+          </Typography>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+            {METHOD_OPTIONS.map((opt) => {
+              const selected = (form.attendanceMethod || 'FACE') === opt.value;
+              return (
+                <Card
+                  key={opt.value}
+                  variant="outlined"
+                  onClick={() => set({ attendanceMethod: opt.value })}
+                  sx={{
+                    flex: '1 1 0',
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    borderWidth: 2,
+                    borderColor: selected ? 'primary.main' : 'divider',
+                    bgcolor: selected ? 'action.selected' : 'background.paper',
+                    transition: 'border-color 0.15s ease, background-color 0.15s ease',
+                  }}
+                >
+                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <opt.icon
+                        fontSize="small"
+                        color={selected ? 'primary' : 'action'}
+                      />
+                      <Typography variant="body2" fontWeight={700}>
+                        {opt.label}
+                      </Typography>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      {opt.caption}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+
+          <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
+            <AppButton
+              variant="contained"
+              startIcon={<SaveIcon fontSize="small" />}
+              onClick={savePunchMethodSettings}
+              loading={saving}
+            >
+              Save Method
             </AppButton>
           </Stack>
         </CardContent>

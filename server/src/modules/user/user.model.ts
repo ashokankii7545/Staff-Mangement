@@ -1,5 +1,5 @@
 import type { WithId } from '../../shared/repository/base-repository.js';
-import type { UserRow } from '../../db/schema/user.schema.js';
+import type { PasskeyJson, UserRow } from '../../db/schema/user.schema.js';
 import type {
   APPROVAL_STATUSES,
   LOGIN_METHODS,
@@ -53,6 +53,10 @@ export interface IUser {
   temporaryAssignment?: ITempAssignment | null;
   leaveBalances?: ILeaveBalances;
   faceEmbedding?: number[];
+  /** WebAuthn passkeys (public keys only) – fingerprint/Face-ID/PIN credentials. */
+  passkeys?: PasskeyJson[];
+  /** Last "register your fingerprint" reminder email timestamp (daily dedupe). */
+  lastFingerprintReminderAt?: Date | null;
   shiftStartTime: string;
   shiftEndTime: string;
   createdAt?: Date;

@@ -1,7 +1,10 @@
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { BaseRepository } from '../../shared/repository/base-repository.js';
 import { populateRefs, populateRefsOne } from '../../shared/repository/populate.util.js';
-import { attendance } from '../../db/schema/attendance.schema.js';
+import { attendance, type AttendanceRow } from '../../db/schema/attendance.schema.js';
+import { users } from '../../db/schema/user.schema.js';
+import { offices } from '../../db/schema/office.schema.js';
 import type { IAttendance, AttendanceDocument } from './attendance.model.js';
 
 export interface AttendanceRangeFilter {
@@ -11,6 +14,17 @@ export interface AttendanceRangeFilter {
 }
 
 const REFS = { user: 'user', approvedBy: 'user', punchedOffice: 'office' } as const;
+
+/** Aliased table copies so ONE query can join owner + approver + office. */
+const ownerUser = alias(users, 'punch_owner');
+const approverUser = alias(users, 'punch_approver');
+
+interface JoinedAttendanceRow {
+  punch: AttendanceRow;
+  owner: typeof users.$inferSelect | null;
+  approver: typeof users.$inferSelect | null;
+  office: typeof offices.$inferSelect | null;
+}
 
 /**
  * AttendanceRepository – punch record data access (Postgres/Drizzle).
@@ -30,6 +44,41 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
       AttendanceRepository.instance = new AttendanceRepository();
     }
     return AttendanceRepository.instance;
+  }
+
+  /**
+   * Map a JOINed row back into the old "populated" document shape:
+   * uuid refs become full objects carrying `_id`, exactly like populateRefs.
+   */
+  private toPopulated(row: JoinedAttendanceRow): AttendanceDocument {
+    const { punch, owner, approver, office } = row;
+    const out: Record<string, unknown> = { ...punch, _id: String(punch.id) };
+    if (owner) out.user = { ...owner, _id: String(owner.id) };
+    else if (punch.user) out.user = String(punch.user);
+    if (approver) out.approvedBy = { ...approver, _id: String(approver.id) };
+    else if (punch.approvedBy) out.approvedBy = String(punch.approvedBy);
+    if (office) out.punchedOffice = { ...office, _id: String(office.id) };
+    else if (punch.punchedOffice) out.punchedOffice = String(punch.punchedOffice);
+    return out as AttendanceDocument;
+  }
+
+  /**
+   * Base SELECT that hydrates user / approvedBy / punchedOffice in ONE database
+   * round-trip via LEFT JOINs instead of a separate `populateRefs` query
+   * (which cost a second ~200ms round-trip on the remote cluster).
+   */
+  private joinedBase() {
+    return this.db
+      .select({
+        punch: attendance,
+        owner: ownerUser,
+        approver: approverUser,
+        office: offices,
+      })
+      .from(attendance)
+      .leftJoin(ownerUser, eq(attendance.user, ownerUser.id))
+      .leftJoin(approverUser, eq(attendance.approvedBy, approverUser.id))
+      .leftJoin(offices, eq(attendance.punchedOffice, offices.id));
   }
 
   /** ── QUERY CATALOG ─────────────────────────────────────────────────────── */
@@ -88,26 +137,22 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
     /** Summary/history rows for a user or everyone, newest first (populated). */
     listByDateRange: (filters: AttendanceRangeFilter): Promise<AttendanceDocument[]> =>
       this.exec('listByDateRange', async () => {
-        const conditions = [];
+        const conditions: SQL[] = [];
         if (filters.userId) conditions.push(eq(attendance.user, filters.userId));
         if (filters.startDate) conditions.push(gte(attendance.date, filters.startDate));
         if (filters.endDate) conditions.push(lte(attendance.date, filters.endDate));
-        const base = this.db
-          .select()
-          .from(attendance)
-          .orderBy(desc(attendance.date), desc(attendance.createdAt));
-        const rows = conditions.length ? await base.where(and(...conditions)) : await base;
-        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
+        const base = this.joinedBase().orderBy(desc(attendance.date), desc(attendance.createdAt));
+        const rows = conditions.length ? await base.where(and(...conditions)!) : await base;
+        return rows.map((r) => this.toPopulated(r));
       }),
 
     /** All CLOCK_IN punches of one day (dashboard / reminders), populated. */
     listClockInsByDate: (date: string): Promise<AttendanceDocument[]> =>
       this.exec('listClockInsByDate', async () => {
-        const rows = await this.db
-          .select()
-          .from(attendance)
-          .where(and(eq(attendance.date, date), eq(attendance.type, 'CLOCK_IN')));
-        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
+        const rows = await this.joinedBase()
+          .where(and(eq(attendance.date, date), eq(attendance.type, 'CLOCK_IN'))!)
+          .orderBy(asc(attendance.createdAt));
+        return rows.map((r) => this.toPopulated(r));
       }),
 
     listClockInsByDateSelectUser: (date: string): Promise<AttendanceDocument[]> =>
@@ -131,17 +176,16 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
     /** Monthly trend – CLOCK_IN punches across a date window (populated). */
     listClockInsBetween: (startDate: string, endDate: string): Promise<AttendanceDocument[]> =>
       this.exec('listClockInsBetween', async () => {
-        const rows = await this.db
-          .select()
-          .from(attendance)
+        const rows = await this.joinedBase()
           .where(
             and(
               gte(attendance.date, startDate),
               lte(attendance.date, endDate),
               eq(attendance.type, 'CLOCK_IN'),
-            ),
-          );
-        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
+            )!,
+          )
+          .orderBy(asc(attendance.date), asc(attendance.createdAt));
+        return rows.map((r) => this.toPopulated(r));
       }),
 
     /**
@@ -154,13 +198,11 @@ export class AttendanceRepository extends BaseRepository<typeof attendance> {
     ): Promise<AttendanceDocument[]> =>
       this.exec('recentActivity', async () => {
         const userId = filter.user ? String(filter.user) : null;
-        const base = this.db
-          .select()
-          .from(attendance)
+        const base = this.joinedBase()
           .orderBy(desc(attendance.createdAt))
           .limit(limit);
         const rows = userId ? await base.where(eq(attendance.user, userId)) : await base;
-        return populateRefs(this.withIds(rows), REFS) as Promise<AttendanceDocument[]>;
+        return rows.map((r) => this.toPopulated(r));
       }),
   };
 }

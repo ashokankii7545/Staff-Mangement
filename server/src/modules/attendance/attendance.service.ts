@@ -5,6 +5,8 @@ import {
   NotFoundError,
   ValidationError,
   VPNDetectedError,
+  FingerprintNotRegisteredError,
+  FingerprintRequiredError,
 } from '../../shared/errors/app.errors.js';
 import { logger } from '../../shared/logger/logger.js';
 import { todayISO } from '../../shared/utils/date.util.js';
@@ -19,13 +21,17 @@ import { attendanceRepository } from './attendance.repository.js';
 import { settingsRepository } from '../settings/settings.repository.js';
 import { userRepository } from '../user/user.repository.js';
 import { officeRepository } from '../office/office.repository.js';
+import { leaveRepository } from '../leave/leave.repository.js';
 import type { AttendanceDocument, IAttendance } from './attendance.model.js';
+import type { IUserDocument } from '../user/user.model.js';
 import { mailService } from '../../shared/mail/mail.service.js';
 import { getFaceEmbeddingFromBase64, cosineSimilarity, checkLiveness, FACE_MATCH_THRESHOLD } from '../../shared/utils/face.util.js';
+import { webauthnService } from '../webauthn/webauthn.service.js';
 import { env } from '../../config/env.js';
 
 export interface ClockInputShape {
-  selfieBase64: string;
+  /** Optional – empty for FINGERPRINT punches (no camera needed). */
+  selfieBase64?: string | null;
   latitude: number;
   longitude: number;
   accuracy: number;
@@ -35,6 +41,8 @@ export interface ClockInputShape {
   faceMatched?: boolean | null;
   faceMatchScore?: number | null;
   livenessFrames?: string[] | null;
+  /** WebAuthn assertion (JSON) from a successful fingerprint/Face-ID ceremony. */
+  webauthnResponse?: string | null;
 }
 
 export interface ClockResult {
@@ -104,6 +112,19 @@ class AttendanceService {
     }
   }
 
+  /**
+   * One "register your fingerprint" reminder email per 24h (daily dedupe) so a
+   * failing FINGERPRINT-mode punch never spams the staff member's inbox.
+   */
+  private async ensureFingerprintReminderEmail(user: IUserDocument): Promise<void> {
+    const last = user.lastFingerprintReminderAt ? new Date(user.lastFingerprintReminderAt).getTime() : 0;
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+    void mailService
+      .sendFingerprintReminderEmail(user)
+      .catch((error) => logger.error('Fingerprint reminder email failed', error));
+    await userRepository.queries.markFingerprintReminderSent(String(user._id));
+  }
+
   public async processPunch(args: {
     userId: string;
     type: 'CLOCK_IN' | 'CLOCK_OUT';
@@ -147,6 +168,8 @@ class AttendanceService {
       checkVPN(ipAddress),
     ]);
 
+    if (!user) throw new NotFoundError('Staff profile not found. Please contact your administrator.');
+
     // Layers 2-4: VPN API + WebRTC + timezone mismatch (fail-open).
     const webrtcMismatch = checkWebRTCMismatch(ipAddress, input.webRTCIPs ?? []);
     const timezoneMismatch = checkTimezoneMismatch(input.browserTimezone, vpnResult.ipTimezone);
@@ -159,6 +182,31 @@ class AttendanceService {
      */
     if (vpnDetected && settings?.vpnStrictMode) {
       throw new VPNDetectedError('VPN or Proxy detected. Please disable VPN to mark attendance.');
+    }
+
+    // ── IDENTITY METHOD (Admin → Settings: FACE / FINGERPRINT / BOTH) ──────────
+    // FINGERPRINT punches are verified server-side with the phone's own sensor
+    // via WebAuthn – the camera/selfie/liveness pipeline is skipped entirely.
+    // requireUserVerification is enforced so the phone MUST use the fingerprint
+    // / Face-ID / PIN – a mere presence tap is rejected by the library.
+    const attendanceMethod = settings?.attendanceMethod ?? 'FACE';
+    let fingerprintVerified = false;
+    if (attendanceMethod === 'FINGERPRINT' || attendanceMethod === 'BOTH') {
+      if (input.webauthnResponse) {
+        // Throws AuthenticationError when the fingerprint/Face-ID check fails.
+        await webauthnService.verifyAuthenticationForPunch(user, input.webauthnResponse);
+        fingerprintVerified = true;
+      } else if (attendanceMethod === 'FINGERPRINT') {
+        if (!webauthnService.hasPasskey(user)) {
+          await this.ensureFingerprintReminderEmail(user);
+          throw new FingerprintNotRegisteredError(
+            'Your fingerprint is not registered yet. Open My Profile → Fingerprint to register it. A reminder email has been sent.',
+          );
+        }
+        throw new FingerprintRequiredError(
+          'Fingerprint verification is required to punch. Please scan your fingerprint.',
+        );
+      }
     }
 
     let withinGeofence = false;
@@ -297,34 +345,48 @@ class AttendanceService {
       );
     }
 
-    // ── Selfie persistence ──
-    const filename = `${userId}_${type.toLowerCase()}_${today}_${Date.now()}`;
-    const selfieUrl = await saveBase64Image(input.selfieBase64, filename);
+    // ── Selfie persistence (skipped entirely for fingerprint punches) ──
+    let selfieUrl = '';
+    if (input.selfieBase64) {
+      const filename = `${userId}_${type.toLowerCase()}_${today}_${Date.now()}`;
+      selfieUrl = await saveBase64Image(input.selfieBase64, filename);
+    }
 
     // ── APPROVAL POLICY (modern HRMS behaviour) ──
     // ── Server-side face verification (SFace via face-service) ──
     // Authoritative when the face-service is configured AND the user is enrolled.
     // Falls back to the client-provided values so nothing breaks before deploy.
-    let faceMatched: boolean | null | undefined = input.faceMatched;
-    let faceMatchScore: number | null | undefined = input.faceMatchScore;
-    const verify = await this.verifyPunchFace(userId, input.selfieBase64);
-    if (verify) {
-      faceMatched = verify.match;
-      faceMatchScore = verify.similarity;
+    // Runs ONLY when a selfie was captured (fingerprint punches skip it).
+    let faceMatched: boolean | null | undefined = fingerprintVerified ? null : input.faceMatched;
+    let faceMatchScore: number | null | undefined = fingerprintVerified ? null : input.faceMatchScore;
+    if (input.selfieBase64) {
+      const verify = await this.verifyPunchFace(userId, input.selfieBase64);
+      if (verify) {
+        faceMatched = verify.match;
+        faceMatchScore = verify.similarity;
+      }
     }
 
     // ── Server-side active liveness (head-turn via face-service) ──
     // null → service off or no frames sent → skip (don't block). false → the
-    // burst did not show a live head-turn → flag for review.
-    const liveness = await checkLiveness(input.livenessFrames ?? []);
-    const livenessFailed = liveness !== null && liveness.live === false;
+    // burst did not show a live head-turn → flag for review. Skipped for
+    // fingerprint punches – the phone's own biometric liveness already proved it.
+    let livenessFailed = false;
+    if (input.selfieBase64) {
+      const liveness = await checkLiveness(input.livenessFrames ?? []);
+      livenessFailed = liveness !== null && liveness.live === false;
+    }
 
-    // A CLEAN punch (inside geofence + face verified + no flag) is auto-APPROVED
-    // so admins only review genuine anomalies. Anything suspicious stays PENDING.
-    const hasIdentityFlag = vpnDetected || faceMatched === false || livenessFailed;
-    const faceVerified = faceMatched === true;
+    // A CLEAN punch (inside geofence + identity verified + no flag) is
+    // auto-APPROVED so admins only review genuine anomalies. Fingerprint punches
+    // are auto-approved because the phone cryptographically confirmed identity;
+    // face punches additionally need the face to match the enrolled selfie.
+    const hasIdentityFlag =
+      vpnDetected || (!fingerprintVerified && (faceMatched === false || livenessFailed));
+    const identityVerified = fingerprintVerified || faceMatched === true;
     const autoApproved =
-      !hasIdentityFlag && faceVerified && settings?.autoApproveAttendance !== false;
+      !hasIdentityFlag && identityVerified && settings?.autoApproveAttendance !== false;
+    const identityMethod: 'FACE' | 'FINGERPRINT' = fingerprintVerified ? 'FINGERPRINT' : 'FACE';
 
     let attendance = await (async () => {
       try {
@@ -334,6 +396,7 @@ class AttendanceService {
           isCoverDuty,
           type,
           selfieUrl,
+          identityMethod,
           location: {
             latitude: input.latitude,
             longitude: input.longitude,
@@ -752,9 +815,7 @@ class AttendanceService {
 }
 
 /** Approved-leave counter for a single day (dashboard "on leave" tile). */
-const leaveCountForDay = async (today: string): Promise<number> => {
-  const { leaveRepository } = await import('../leave/leave.repository.js');
-  return leaveRepository.queries.countApprovedOnDate(today);
-};
+const leaveCountForDay = (today: string): Promise<number> =>
+  leaveRepository.queries.countApprovedOnDate(today);
 
 export const attendanceService = AttendanceService.getInstance();

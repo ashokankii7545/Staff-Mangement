@@ -23,6 +23,8 @@ export const attendanceTypes = /* GraphQL */ `
     user: User!
     type: PunchType!
     selfieUrl: String!
+    "How this punch was verified: FACE or FINGERPRINT."
+    identityMethod: String!
     location: Location!
     ipAddress: String
     vpnDetected: Boolean
@@ -88,7 +90,8 @@ export const attendanceTypes = /* GraphQL */ `
   }
 
   input ClockInput {
-    selfieBase64: String!
+    "Optional – omitted/empty for FINGERPRINT punches (no camera needed)."
+    selfieBase64: String
     latitude: Float!
     longitude: Float!
     accuracy: Float!
@@ -97,7 +100,13 @@ export const attendanceTypes = /* GraphQL */ `
     webRTCIPs: [String!]
     faceMatched: Boolean
     faceMatchScore: Float
-    """Burst of base64 frames for server-side head-turn liveness."""
+    "Burst of base64 frames for server-side head-turn liveness."
     livenessFrames: [String!]
+    """
+    WebAuthn assertion (JSON) collected by the phone's fingerprint/Face-ID
+    after a successful beginFingerprintAuthentication ceremony. Required
+    when Settings.attendanceMethod is FINGERPRINT.
+    """
+    webauthnResponse: String
   }
 `;

@@ -1,4 +1,4 @@
-import { useAppMutation } from '../../../shared/hooks';
+import { useAppMutation, useAppQuery } from '../../../shared/hooks';
 import React, { useState, useEffect, useCallback } from 'react';
 
 
@@ -8,21 +8,26 @@ import DialogContent from '@mui/material/DialogContent';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import AdvancedLoader from '../../../shared/ui/AdvancedLoader';
 import StatusBadge from '../../../shared/ui/StatusBadge';
 import LoginIcon from '@mui/icons-material/Login';
 import LogoutIcon from '@mui/icons-material/Logout';
 import CloseIcon from '@mui/icons-material/Close';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
+import FaceIcon from '@mui/icons-material/Face';
 import IconButton from '@mui/material/IconButton';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import SelfieCapture from './SelfieCapture';
+import FingerprintCapture from './FingerprintCapture';
 import VPNWarningDialog from './VPNWarningDialog';
 import { useGeolocation } from '../../../shared/hooks/useGeolocation';
 import { getWebRTCIPs } from '../../../shared/hooks/useWebRTC';
 import { useFaceRecognition } from '../../../shared/hooks/useFaceRecognition';
+import { useFingerprint } from '../../../shared/hooks/useFingerprint';
 import { useAuth } from '../../../shared/auth/AuthContext';
 import { CLOCK_IN, CLOCK_OUT } from '../../../graphql/mutations';
-import { GET_TODAY_STATUS, GET_DASHBOARD_STATS, GET_WEEKLY_ATTENDANCE, GET_MY_ATTENDANCE } from '../../../graphql/queries';
+import { GET_TODAY_STATUS, GET_DASHBOARD_STATS, GET_WEEKLY_ATTENDANCE, GET_MY_ATTENDANCE, GET_PUBLIC_CONFIG } from '../../../graphql/queries';
 import { useNotification } from '../../../shared/ui';
 
 const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
@@ -33,6 +38,32 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
   const [submitting, setSubmitting] = useState(false);
   const [verifyingMsg, setVerifyingMsg] = useState('');
   const [vpnWarning, setVpnWarning] = useState({ open: false, message: '' });
+
+  // Org-wide punch method (FACE / FINGERPRINT / BOTH) from public settings.
+  const { data: configData } = useAppQuery(GET_PUBLIC_CONFIG);
+  const attendanceMethod = configData?.publicConfig?.attendanceMethod || 'FACE';
+
+  // Which identity step to show when the admin allows BOTH.
+  const [mode, setMode] = useState('FACE');
+  useEffect(() => {
+    if (open) setMode(attendanceMethod === 'FINGERPRINT' ? 'FINGERPRINT' : 'FACE');
+  }, [open, attendanceMethod]);
+
+  const {
+    authenticateFingerprint,
+    busy: scanning,
+    browserSupported: fpSupported,
+    errorMessage: fpError,
+    clearError: clearFpError,
+  } = useFingerprint();
+
+  // Surface fingerprint errors (cancel, no passkey registered, etc.) once.
+  useEffect(() => {
+    if (fpError) {
+      notify.error(fpError);
+      clearFpError();
+    }
+  }, [fpError, notify.error, clearFpError]);
 
   const mutation = type === 'CLOCK_IN' ? CLOCK_IN : CLOCK_OUT;
   const [submitAttendance] = useAppMutation(mutation, {
@@ -161,6 +192,93 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
     }
   }, [location, submitAttendance, isClockIn, notify.show, onClose]);
 
+  // FINGERPRINT-mode punch: the DEVICE verifies the biometric (WebAuthn
+  // assertion) and we submit the same GPS/VPN context as the face flow, with
+  // the assertion in `webauthnResponse` (server re-verifies + updates lastUsed).
+  const handleFingerprintPunch = useCallback(async () => {
+    setSubmitting(true);
+    setVerifyingMsg('Waiting for fingerprint...');
+    try {
+      const assertion = await authenticateFingerprint();
+      if (!assertion) {
+        // The fpError effect already surfaced the reason (cancel / no
+        // passkey / unsupported browser). Just reset the local UI state.
+        setSubmitting(false);
+        setVerifyingMsg('');
+        return;
+      }
+
+      setVerifyingMsg('Acquiring secure location...');
+
+      // Ensure GPS is ready (same flow as the face punch)
+      let currentLoc = location;
+      if (!currentLoc) {
+        currentLoc = await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            return reject(new Error('Geolocation is not supported by your browser'));
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            }),
+            (err) => reject(new Error(err.message || 'Please enable GPS/Location')),
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        });
+      }
+
+      setVerifyingMsg('Checking VPN and Network...');
+      const webRTCIPs = await getWebRTCIPs();
+      const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      setVerifyingMsg('Submitting punch...');
+      const { data, error, errorMessage } = await submitAttendance({
+        variables: {
+          input: {
+            latitude: currentLoc.latitude,
+            longitude: currentLoc.longitude,
+            accuracy: currentLoc.accuracy || 20,
+            browserTimezone,
+            webRTCIPs,
+            // No selfie needed – the fingerprint assertion IS the identity.
+            webauthnResponse: assertion,
+          },
+        },
+      });
+
+      if (error) {
+        throw new Error(errorMessage || 'Failed to submit attendance');
+      }
+
+      const result = isClockIn ? data?.clockIn : data?.clockOut;
+      if (!result) {
+        throw new Error('Failed to parse backend response (data is null).');
+      }
+
+      if (result.success) {
+        notify.success(result.message || 'Attendance verified & marked successfully!', {
+          key: `punch-${Date.now()}`,
+        });
+        setTimeout(() => onClose(), 150);
+      } else {
+        notify.warning(result.message || 'Punch could not be completed. Please try again.', {
+          key: `punch-warn-${Date.now()}`,
+        });
+      }
+    } catch (err) {
+      const errorMsg = err.message || 'Failed to submit attendance';
+      if (errorMsg.toLowerCase().includes('vpn') || errorMsg.toLowerCase().includes('proxy')) {
+        setVpnWarning({ open: true, message: errorMsg });
+      } else {
+        notify.error(errorMsg);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [authenticateFingerprint, location, submitAttendance, isClockIn, notify.show, notify.error, onClose]);
+
   return (
     <>
       <Dialog
@@ -235,7 +353,29 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
               />
             </Box>
 
-            {/* Live Camera View with 1-Click Capture & Auto-Submit */}
+            {/* Identity step: admin-chosen method (FACE / FINGERPRINT / BOTH).
+                In BOTH mode staff can flip between the two at punch time. */}
+            {attendanceMethod === 'BOTH' && !submitting && (
+              <Stack direction="row" spacing={1} justifyContent="center">
+                <Chip
+                  icon={<FaceIcon />}
+                  label="Face"
+                  onClick={() => setMode('FACE')}
+                  color={mode === 'FACE' ? 'primary' : 'default'}
+                  variant={mode === 'FACE' ? 'filled' : 'outlined'}
+                  size="small"
+                />
+                <Chip
+                  icon={<FingerprintIcon />}
+                  label="Fingerprint"
+                  onClick={() => setMode('FINGERPRINT')}
+                  color={mode === 'FINGERPRINT' ? 'primary' : 'default'}
+                  variant={mode === 'FINGERPRINT' ? 'filled' : 'outlined'}
+                  size="small"
+                />
+              </Stack>
+            )}
+
             {submitting ? (
               <Box sx={{ py: 6, textAlign: 'center' }}>
                 <AdvancedLoader isLoading={true} variant="spinner" size={36} sx={{ color: 'primary.main', mb: 2 }} />
@@ -246,6 +386,12 @@ const AttendanceDialog = ({ open, onClose, type = 'CLOCK_IN' }) => {
                   Please hold on for a moment
                 </Typography>
               </Box>
+            ) : attendanceMethod === 'FINGERPRINT' || (attendanceMethod === 'BOTH' && mode === 'FINGERPRINT') ? (
+              <FingerprintCapture
+                onScanVerified={handleFingerprintPunch}
+                isScanning={scanning || submitting}
+                browserSupported={fpSupported}
+              />
             ) : (
               <SelfieCapture 
                 onCapture={handleCaptureAndPunch} 

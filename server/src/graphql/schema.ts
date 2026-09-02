@@ -12,6 +12,7 @@ import { medicineTypes } from '../modules/medicine/medicine.types.js';
 import { documentTypes } from '../modules/document/document.types.js';
 import { regularizationTypes } from '../modules/regularization/regularization.types.js';
 import { notificationTypes } from '../modules/notification/notification.types.js';
+import { webauthnTypes } from '../modules/webauthn/webauthn.types.js';
 import { rootTypes } from './root.types.js';
 import { resolvers } from './schema.resolvers.js';
 
@@ -34,6 +35,7 @@ export const schema = makeExecutableSchema({
     documentTypes,
     regularizationTypes,
     notificationTypes,
+    webauthnTypes,
     rootTypes,
   ],
   resolvers: resolvers as IResolvers,

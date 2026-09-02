@@ -21,6 +21,13 @@ export const GET_ME = gql`
         sick
         earned
       }
+      passkeys {
+        id
+        createdAt
+        lastUsedAt
+        deviceType
+        backedUp
+      }
     }
   }
 `;
@@ -357,6 +364,7 @@ export const GET_PUBLIC_CONFIG = gql`
     publicConfig {
       organizationName
       appLogo
+      attendanceMethod
     }
   }
 `;
@@ -375,6 +383,7 @@ export const GET_SETTINGS = gql`
       shiftEndTime
       lateThresholdMinutes
       workingDays
+      attendanceMethod
       vpnStrictMode
       autoApproveAttendance
       mailFromName
@@ -748,6 +757,13 @@ export const GET_STAFF_PROFILE = gql`
         payoutDate
         frequency
       }
+      passkeys {
+        id
+        createdAt
+        lastUsedAt
+        deviceType
+        backedUp
+      }
     }
   }
 `;
@@ -792,6 +808,13 @@ export const GET_MY_PROFILE = gql`
         reason
         payoutDate
         frequency
+      }
+      passkeys {
+        id
+        createdAt
+        lastUsedAt
+        deviceType
+        backedUp
       }
     }
   }

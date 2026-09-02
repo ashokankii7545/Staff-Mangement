@@ -11,6 +11,8 @@ export const settingsTypes = /* GraphQL */ `
     shiftEndTime: String!
     lateThresholdMinutes: Int!
     workingDays: [String!]!
+    "How staff verify identity when punching: FACE / FINGERPRINT / BOTH."
+    attendanceMethod: String!
     vpnStrictMode: Boolean!
     autoApproveAttendance: Boolean!
     mailFromName: String!
@@ -45,6 +47,7 @@ export const settingsTypes = /* GraphQL */ `
     shiftEndTime: String
     lateThresholdMinutes: Int
     workingDays: [String!]
+    attendanceMethod: String
     vpnStrictMode: Boolean
     autoApproveAttendance: Boolean
     mailFromName: String
@@ -69,5 +72,7 @@ export const settingsTypes = /* GraphQL */ `
   type PublicConfig {
     organizationName: String!
     appLogo: String
+    "Which punch identity method is active org-wide: FACE / FINGERPRINT / BOTH."
+    attendanceMethod: String!
   }
 `;

@@ -508,6 +508,22 @@ class MailService {
     });
   }
 
+  /** Staff must register a fingerprint (WebAuthn passkey) before punching. */
+  public async sendFingerprintReminderEmail(recipient: MailRecipient): Promise<void> {
+    await this.sendUserUpdateEmail(recipient, {
+      subject: 'Action Required: Register your fingerprint for attendance',
+      heading: 'Fingerprint Attendance 🔐',
+      pill: { label: 'ACTION REQUIRED', tone: 'warning' },
+      introText: 'Your organisation has enabled fingerprint-based attendance. Please register your fingerprint so you can clock in / out.',
+      lines: [
+        '<strong>Why?</strong> Attendance punches now require a fingerprint / Face-ID confirmation from your phone.',
+        '<strong>How?</strong> Open the app → <strong>My Profile</strong> → <strong>Fingerprint</strong> → tap “Register Fingerprint”.',
+      ],
+      buttonText: 'Register Fingerprint',
+      buttonPath: '/profile',
+    });
+  }
+
   /** Self-signup rejected – tell the requester why. */
   public async sendSignupRejectionEmail(recipient: MailRecipient, note?: string | null): Promise<void> {
     await this.sendUserUpdateEmail(recipient, {

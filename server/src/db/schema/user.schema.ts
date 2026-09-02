@@ -57,6 +57,27 @@ export interface BonusJson {
 }
 
 /**
+ * One WebAuthn passkey credential registered by a staff member (jsonb array).
+ * The fingerprint itself NEVER leaves the phone – this is only the public
+ * verification material needed to cryptographically confirm a punch.
+ */
+export interface PasskeyJson {
+  /** Base64URL-encoded credential id – used to look the key up at punch time. */
+  id: string;
+  /** Base64URL-encoded raw public key bytes (decoded to Uint8Array to verify). */
+  publicKey: string;
+  /** Signature counter – updated after every successful authentication. */
+  counter: number;
+  transports?: string[] | null;
+  deviceType?: string | null; // 'singleDevice' | 'multiDevice'
+  backedUp?: boolean;
+  /** ISO registration timestamp. */
+  createdAt: string;
+  /** ISO timestamp of the last successful punch. */
+  lastUsedAt?: string | null;
+}
+
+/**
  * Users – the identity + profile table (old Mongo `User` collection).
  * Auth (JWT/Google/bcrypt) is UNCHANGED; it just reads/writes this table.
  *
@@ -98,6 +119,10 @@ export const users = pgTable(
     faceEmbedding: real('face_embedding').array().notNull().default(sql`'{}'::real[]`),
     /** SFace 128-d enrollment embedding (pgvector). Provisioned via scripts/enable-pgvector.mjs. */
     faceVector: vector('face_vector'),
+    /** WebAuthn passkeys (fingerprint/Face-ID/PIN credentials) – public keys only. */
+    passkeys: jsonb('passkeys').$type<PasskeyJson[]>().notNull().default(sql`'[]'::jsonb`),
+    /** Last time we emailed a "register your fingerprint" reminder (daily dedupe). */
+    lastFingerprintReminderAt: timestamp('last_fingerprint_reminder_at', { withTimezone: true }),
     shiftStartTime: text('shift_start_time').notNull().default(''),
     shiftEndTime: text('shift_end_time').notNull().default(''),
     /** Admin-managed compensation (nullable – set only when an admin fills it in). */

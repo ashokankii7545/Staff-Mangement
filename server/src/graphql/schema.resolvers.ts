@@ -9,6 +9,7 @@ import { regularizationResolvers } from '../modules/regularization/regularizatio
 import { notificationResolvers } from '../modules/notification/notification.resolver.js';
 import { medicineResolvers } from '../modules/medicine/medicine.resolver.js';
 import { documentResolvers } from '../modules/document/document.resolver.js';
+import { webauthnResolvers } from '../modules/webauthn/webauthn.resolver.js';
 import { customScalars } from '../shared/graphql/scalars.js';
 
 type ResolverSet = Record<string, Record<string, any>>;
@@ -38,4 +39,5 @@ export const resolvers = mergeResolvers(
   notificationResolvers,
   medicineResolvers,
   documentResolvers,
+  webauthnResolvers,
 );

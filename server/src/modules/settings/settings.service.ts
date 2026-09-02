@@ -1,5 +1,6 @@
 import { ValidationError } from '../../shared/errors/app.errors.js';
 import { settingsRepository } from './settings.repository.js';
+import { userRepository } from '../user/user.repository.js';
 import type { SettingsDocument } from './settings.model.js';
 import { saveBase64Image } from '../../shared/utils/file-upload.util.js';
 
@@ -40,7 +41,27 @@ class SettingsService {
     void import('../../shared/mail/mail.service.js').then(({ mailService }) =>
       mailService.sendSettingsChangeEmail(adminName),
     );
+
+    // FINGERPRINT / BOTH mode: every staff who has NOT enrolled a fingerprint
+    // gets an "Action Required: register your fingerprint" email right away,
+    // exactly like the admin requested at hiring/setup time.
+    if (input.attendanceMethod === 'FINGERPRINT' || input.attendanceMethod === 'BOTH') {
+      void this.onboardFingerprintStaff();
+    }
     return settings;
+  }
+
+  /** Fire-and-forget: email every active approved staff member without a passkey. */
+  private async onboardFingerprintStaff(): Promise<void> {
+    try {
+      const { mailService } = await import('../../shared/mail/mail.service.js');
+      const staff = await userRepository.queries.findUsersWithoutPasskeys();
+      await Promise.allSettled(staff.map((u) => mailService.sendFingerprintReminderEmail(u)));
+    } catch (error) {
+      // Never block the settings save because an email failed.
+      const { logger } = await import('../../shared/logger/logger.js');
+      logger.error('Failed to send fingerprint onboarding emails', error);
+    }
   }
 }
 

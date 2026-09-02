@@ -39,6 +39,18 @@ export interface AppEnv {
   /** Optional bearer token for the face service (must match its FACE_SERVICE_TOKEN). */
   readonly faceServiceToken: string;
   /**
+   * WebAuthn (fingerprint / passkey) relying-party config.
+   * rpId MUST equal the browser hostname the app runs on (e.g. 'localhost' in
+   * dev, 'app.example.com' in prod). expectedOrigins MUST exactly match the
+   * browser origin(s) including scheme+port – the WebAuthn ceremony only
+   * happens on the CLIENT origin, the API server just verifies.
+   */
+  readonly webauthn: {
+    readonly rpId: string;
+    readonly rpName: string;
+    readonly expectedOrigins: readonly string[];
+  };
+  /**
    * Public URL used to self-ping /health and keep free-tier hosts awake
    * (Render auto-injects RENDER_EXTERNAL_URL; KEEP_ALIVE_URL overrides it).
    * Empty → keep-alive job stays off.
@@ -122,6 +134,16 @@ class EnvConfig {
       vpnApiKey: process.env.VPNAPI_KEY ?? '',
       faceServiceUrl: process.env.FACE_SERVICE_URL?.trim() || '',
       faceServiceToken: process.env.FACE_SERVICE_TOKEN?.trim() || '',
+      webauthn: Object.freeze({
+        rpId: process.env.WEBAUTHN_RP_ID?.trim() || 'localhost',
+        rpName: process.env.WEBAUTHN_RP_NAME?.trim() || 'EdgeAttendance',
+        expectedOrigins: Object.freeze(
+          (process.env.WEBAUTHN_ORIGINS?.trim() || 'http://localhost:5173')
+            .split(',')
+            .map((o) => o.trim())
+            .filter(Boolean),
+        ),
+      }),
       keepAliveUrl:
         process.env.KEEP_ALIVE_URL?.trim() || process.env.RENDER_EXTERNAL_URL?.trim() || '',
       logLevel: parseLogLevel(process.env.LOG_LEVEL),

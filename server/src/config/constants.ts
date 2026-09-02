@@ -12,6 +12,15 @@ export type Role = (typeof ROLES)[number];
 export const PUNCH_TYPES = ['CLOCK_IN', 'CLOCK_OUT'] as const;
 export type PunchType = (typeof PUNCH_TYPES)[number];
 
+/**
+ * How a staff member verifies identity when punching attendance.
+ *  - FACE         → selfie / camera only (legacy behaviour)
+ *  - FINGERPRINT  → WebAuthn passkey (phone fingerprint / Face ID / PIN) ONLY
+ *  - BOTH         → staff may choose either method each punch
+ */
+export const ATTENDANCE_METHODS = ['FACE', 'FINGERPRINT', 'BOTH'] as const;
+export type AttendanceMethod = (typeof ATTENDANCE_METHODS)[number];
+
 export const APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 

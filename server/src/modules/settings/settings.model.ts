@@ -1,5 +1,6 @@
 import type { WithId } from '../../shared/repository/base-repository.js';
 import type { SettingsRow } from '../../db/schema/settings.schema.js';
+import type { AttendanceMethod } from '../../config/constants.js';
 
 /** Settings sub-object shapes (jsonb columns). */
 export interface IEmailNotificationPrefs {
@@ -30,6 +31,8 @@ export interface ISettings {
   shiftEndTime: string;
   lateThresholdMinutes: number;
   workingDays: string[];
+  /** How staff verify identity when punching: 'FACE' | 'FINGERPRINT' | 'BOTH'. */
+  attendanceMethod: AttendanceMethod;
   vpnStrictMode: boolean;
   regularizationAutoApproveDays: number;
   autoApproveAttendance: boolean;

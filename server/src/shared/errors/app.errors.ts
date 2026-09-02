@@ -50,6 +50,20 @@ export class VPNDetectedError extends AppError {
   }
 }
 
+/** Fingerprint (WebAuthn) mode is ON but the staff has not enrolled a passkey yet. */
+export class FingerprintNotRegisteredError extends AppError {
+  constructor(message = 'Fingerprint not registered yet.') {
+    super(message, 'FINGERPRINT_NOT_REGISTERED');
+  }
+}
+
+/** FINGERPRINT mode requires a fresh WebAuthn assertion before a punch. */
+export class FingerprintRequiredError extends AppError {
+  constructor(message = 'Fingerprint verification is required to punch.') {
+    super(message, 'FINGERPRINT_REQUIRED');
+  }
+}
+
 export class GeofenceError extends AppError {
   constructor(message = 'Outside geofence boundary.') {
     super(message, 'GEOFENCE_VIOLATION');

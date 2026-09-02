@@ -112,6 +112,12 @@ export const rootTypes = /* GraphQL */ `
     deleteNotification(id: ID!): Boolean!
     clearReadNotifications: Int!
     broadcastEmail(subject: String!, message: String!): Boolean!
+
+    """Fingerprint (WebAuthn/passkey) ceremonies – staff self-service."""
+    beginFingerprintRegistration: WebAuthnOptionsPayload!
+    completeFingerprintRegistration(responseJson: String!): WebAuthnVerifyResult!
+    removeFingerprint(credentialId: String!): WebAuthnVerifyResult!
+    beginFingerprintAuthentication: WebAuthnOptionsPayload!
   }
 
   type Subscription {

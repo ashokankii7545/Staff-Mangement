@@ -41,6 +41,11 @@ export const settings = pgTable('settings', {
     .array()
     .notNull()
     .default(sql`'{Monday,Tuesday,Wednesday,Thursday,Friday}'::text[]`),
+  /**
+   * How staff verify identity when punching: 'FACE' | 'FINGERPRINT' | 'BOTH'
+   * (see server/src/config/constants.ts ATTENDANCE_METHODS).
+   */
+  attendanceMethod: text('attendance_method').notNull().default('FACE'),
   vpnStrictMode: boolean('vpn_strict_mode').notNull().default(false),
   regularizationAutoApproveDays: integer('regularization_auto_approve_days').notNull().default(0),
   autoApproveAttendance: boolean('auto_approve_attendance').notNull().default(true),
